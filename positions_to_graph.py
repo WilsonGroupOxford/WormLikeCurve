@@ -13,8 +13,8 @@ import scipy.spatial.distance
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
+import sys
 
-from RingStatistics import RingStatistics
 
 
 LJ_BOND = 1.5
@@ -115,7 +115,14 @@ def find_lj_clusters(pair_dict):
     """
     clusters = set()
     for key, value in pair_dict.items():
-        cluster = frozenset([key] + list(value))
+        # This node should be in a cluster with not only
+        # its neighbours, but its neighbours neighbours.
+        second_degree_neighbours = [item 
+                                    for neighbour in value
+                                    for item in pair_dict[neighbour]]
+        print(second_degree_neighbours)
+        cluster = frozenset([key] + list(value) + second_degree_neighbours)
+        print(value)
         clusters.add(cluster)
     return clusters
 
@@ -188,12 +195,18 @@ if __name__ == "__main__":
     # Parsing section -- read the files, and split the atoms
     # and molecules into a few types. This could probably
     # be neatened with more use of MDA.
-    universe = mda.Universe("output_minimise.lammpstrj",
-                            topology="polymer_total.data",
+    if len(sys.argv) == 3:
+        position_file = sys.argv[1]
+        topology_file = sys.argv[2]
+    else:
+        position_file ="output_minimise.lammpstrj"
+        topology_file = "polymer_total.data"
+    universe = mda.Universe(position_file,
+                            topology=topology_file,
                             format="LAMMPSDUMP")
     ALL_ATOMS = universe.select_atoms("all")
 
-    ATOMS, MOLECS, BONDS = parse_molecule_topology("polymer_total.data")
+    ATOMS, MOLECS, BONDS = parse_molecule_topology(topology_file)
 
     # Find the terminal atoms, and group them into clusters.
     TERMINALS = universe.select_atoms("type 2 or type 3")
@@ -210,9 +223,6 @@ if __name__ == "__main__":
     MOLEC_TERMINALS = find_molecule_terminals(MOLECS)
     G = nx.Graph()
     G = connect_clusters(G, MOLEC_TERMINALS, ALL_CLUSTERS)
-    FIG, AX = plt.subplots()
-    nx.draw(G, pos=CLUSTER_POSITIONS, ax=AX)
-    plt.show()
     with open("edges.dat", "w") as fi:
         fi.write("# Node A, Node B\n")
         for edge in G.edges():
@@ -222,14 +232,4 @@ if __name__ == "__main__":
         for node in sorted(G.nodes()):
             position = CLUSTER_POSITIONS[node]
             fi.write(f"{node}, {position[0]:.3f}, {position[1]:.3f}\n")
-    # Now we've got the graph, calculate some ring statistics for it.
-    RS = RingStatistics(G, 20)
-    # This operation is expensive, so it is called separately
-    # otherwise the construction is slow.
-    RS.all_shortest_paths()
-    RINGS = RS.find_all_rings()
-    RING_SIZES = Counter([len(ring) for ring in RINGS])
-    print("There are the following ring counts:", RING_SIZES)
-    FIG, AX = plt.subplots()
-    AX.bar(RING_SIZES.keys(),
-           [RING_SIZES[SIZE] for SIZE in RING_SIZES.keys()])
+
