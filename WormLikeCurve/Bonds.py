@@ -8,7 +8,6 @@ Created on Tue Sep 24 14:29:32 2019
 
 import numpy as np
 
-
 class HarmonicBond:
     """
     Represents a LAMMPS harmonic bond between two atoms.

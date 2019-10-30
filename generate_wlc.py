@@ -9,9 +9,9 @@ Created on Mon Sep 23 09:30:33 2019
 import numpy as np
 import matplotlib.pyplot as plt
 
-from WormLikeCurve import WormLikeCurve
-from CurveCollection import CurveCollection
-from Bonds import HarmonicBond, AngleBond
+from WormLikeCurve.WormLikeCurve import WormLikeCurve
+from WormLikeCurve.CurveCollection import CurveCollection
+from WormLikeCurve.Bonds import HarmonicBond, AngleBond
 
 KBT = 1.0  # atomic units
 BOND_VAR = 1.0

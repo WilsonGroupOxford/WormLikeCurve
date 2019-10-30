@@ -9,10 +9,10 @@ Created on Tue Sep 24 14:29:00 2019
 import numpy as np
 import matplotlib.patches as mpatches
 from matplotlib.collections import LineCollection
-from Bonds import HarmonicBond, AngleBond
-from Helpers import boltzmann_distrib
+from WormLikeCurve.Bonds import HarmonicBond, AngleBond
+from WormLikeCurve.Helpers import boltzmann_distrib
 
-from CurveCollection import CurveCollection
+from WormLikeCurve.CurveCollection import CurveCollection
 
 
 class WormLikeCurve:
