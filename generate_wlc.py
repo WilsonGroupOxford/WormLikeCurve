@@ -6,6 +6,7 @@ Created on Mon Sep 23 09:30:33 2019
 @author: matthew-bailey
 """
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -17,6 +18,8 @@ KBT = 1.0  # atomic units
 BOND_VAR = 1.0
 
 if __name__ == "__main__":
+    if len(sys.argv) == 2:
+        sticky_fraction = float(sys.argv[1])
     POLYMER_COLLECTION = CurveCollection()
     SPACING = 7
     for i in range(12):
@@ -30,6 +33,7 @@ if __name__ == "__main__":
                                                     start_pos=start_pos
                                                     )
                                      )
+            POLYMER_COLLECTION[-1].add_sticky_sites(sticky_fraction)
     FIG, AX = plt.subplots()
     AX.axis('equal')
     
@@ -37,9 +41,6 @@ if __name__ == "__main__":
         POLYMER.rotate(np.random.uniform(0, 2*np.pi))    
                                          
     
-    POLYMER_COLLECTION.plot_onto(AX, [{"color": "blue",
-                                       "linestyle": "dashed"},
-                                      {"color": "orange",
-                                       "linestyle": "dashed"}])
+    POLYMER_COLLECTION.plot_onto(AX)
     POLYMER_COLLECTION.to_lammps("polymer_total.data")
     plt.show()

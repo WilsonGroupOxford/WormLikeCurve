@@ -53,6 +53,17 @@ class WormLikeCurve:
         self.positions = self.vectors_to_positions()
         self.recentre()
 
+    def add_sticky_sites(self, proportion: float):
+        """
+        Turns a proportion of sites along the body (type 1)
+        into 'sticky' sites (type 4)
+        """
+        assert 0 < proportion, "Proportion must be a positive number between 0 and 1"
+        assert 1 >= proportion, "Proportion must be a positive number between 0 and 1"
+        num_body_atoms = self.num_atoms - 2
+        body_atoms = np.random.choice([1, 4], p=[1.0-proportion, proportion], size=num_body_atoms)
+        self.atom_types[1:-1] = body_atoms
+        
     def recentre(self):
         """
         Recentres the polymer so that its centre of mass
@@ -240,15 +251,20 @@ class WormLikeCurve:
 
         # Now draw the sticky ends
         END_SIZE = 0.2
-        circle_end = mpatches.Circle(self.positions[0],
-                                     END_SIZE / 2,
-                                     **kwargs)
-        
-        square_end = mpatches.Rectangle(self.positions[-1] - END_SIZE / 2,
-                                        END_SIZE, END_SIZE,
-                                        **kwargs)
-        ax.add_artist(circle_end)
-        ax.add_artist(square_end)
+        for i in range(self.positions.shape[0]):
+            if self.atom_types[i] == 1:
+                color = "purple"
+            elif self.atom_types[i] == 2:
+                color = "blue"
+            elif self.atom_types[i] == 3:
+                color = "green"
+            elif self.atom_types[i] == 4:
+                color = "red"
+            circle_end = mpatches.Circle(self.positions[i],
+                                         END_SIZE / 2,
+                                         color=color,
+                                         **kwargs)
+            ax.add_artist(circle_end)
 
         if fit_edges:
             min_x, min_y = np.min(self.positions, axis=0)
