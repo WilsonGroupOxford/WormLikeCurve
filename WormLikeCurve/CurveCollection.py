@@ -151,24 +151,21 @@ class CurveCollection:
 
             # Bonds
             fi.write("Bonds\n\n")
-            atom_id = 0
             bond_id = 0
-            total_atoms = 0
+            total_atoms = 1
             for curve in self.curves:
-                print(curve.predecessors)
-                for _ in range(curve.num_segments):
-                    atom_id += 1
+                print(curve.bonds)
+                for atom_a, atom_b in curve.bonds:
                     bond_id += 1
                     # format:
                     # bond_id atom_1 atom_2
-                    relative_atom = (atom_id - 1) % (curve.num_atoms)
-                    atom_predecessor = curve.predecessors[relative_atom] + 1
-                    predecessor_id = atom_predecessor + total_atoms
-                    fi.write(f"\t {bond_id} \t 1 \t {predecessor_id} \t {atom_id + 1}\n")
+                    atom_a += total_atoms
+                    atom_b += total_atoms
+                    fi.write(f"\t {bond_id} \t 1 \t {atom_a} \t {atom_b}\n")
                 # Skip over one atom because end of curves[0]
                 # is not connected to start of curves[1]
                 total_atoms += curve.num_atoms
-                atom_id += 1
+ 
             fi.write("\n")
 
             # Angles

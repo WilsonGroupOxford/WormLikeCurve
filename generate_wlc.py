@@ -16,16 +16,32 @@ from WormLikeCurve.Bonds import HarmonicBond, AngleBond
 
 KBT = 1.0  # atomic units
 BOND_VAR = 1.0
+MEAN_LENGTH = 6
+STD_LENGTH = 3
+DEFAULT_STICKY_FRACTION = 0.2
+MIN_SIZE = 3
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:
         sticky_fraction = float(sys.argv[1])
+    else:
+        sticky_fraction = DEFAULT_STICKY_FRACTION
+
+    if 0 > sticky_fraction:
+        raise RuntimeError("Sticky fraction must be positive.")
+    elif 1 < sticky_fraction:
+        raise RuntimeError("Sticky fraction must be less than 1.")
     POLYMER_COLLECTION = CurveCollection()
     SPACING = 7
-    for i in range(12):
-        for j in range(12):
+    for i in range(2):
+        for j in range(2):
             start_pos= np.array([-SPACING * i,  -SPACING * j])
-            POLYMER_COLLECTION.append(WormLikeCurve(6,
+            # Iterate until we generate a positive size.
+            size = -1
+            while size < MIN_SIZE:
+                size = int(np.random.normal(loc=MEAN_LENGTH, scale=STD_LENGTH))
+                print(f"({i},{j}): {size}")
+            POLYMER_COLLECTION.append(WormLikeCurve(size,
                                                     HarmonicBond(k=1.0,
                                                                  length=1.0),
                                                     AngleBond(k=100.0,

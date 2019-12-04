@@ -38,13 +38,13 @@ class WormLikeCurve:
         self.kbt = kbt
         self.vectors = np.empty([num_segments, 2])
         self.start_pos = start_pos
-        self.predecessors = []
+        self.bonds = []
         for i in range(num_segments):
             length = self.generate_length()
             angle = self.generate_angle(self.angle_bond,
                                         min_angle=0.0 * np.pi,
                                         max_angle=2.0 * np.pi)
-            self.predecessors.append(i)
+            self.bonds.append((i, i+1))
             self.vectors[i, :] = length, angle
         self.atom_types = np.ones([self.num_atoms], dtype=int)
         self.atom_types[0] = 2
@@ -226,7 +226,7 @@ class WormLikeCurve:
             length, angle = self.vectors[i]
             vector = np.array([length * np.cos(angle),
                                length * np.sin(angle)])
-            predecessor = self.predecessors[i]
+            predecessor = self.bonds[i][0]
             positions[i + 1] = positions[predecessor] + vector
         return positions
 
@@ -243,7 +243,7 @@ class WormLikeCurve:
 
         lines = []
         for i in range(self.num_segments):
-            predecessor = self.predecessors[i]
+            predecessor = self.bonds[i][0]
             lines.append(np.row_stack([self.positions[predecessor],
                                        self.positions[i + 1]]))
         line_collection = LineCollection(lines, **kwargs)

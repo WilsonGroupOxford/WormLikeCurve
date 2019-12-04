@@ -449,4 +449,67 @@ class TestIntegration:
         true_counts = {8: 6, 12: 5, 48: 2, 30: 2, 28: 1, 80: 1, 20: 1}
         assert counts == true_counts
 
+    def test_clustering_error(self):
+        position_file = "./Data/test_clustering_error.lammpstrj"
+        topology_file = "./Data/test_clustering_error.data"
+
+
+        cell = np.array([[-7.7994171576760237e+01, -6.4008284232299033e+00],
+                         [-7.7994171576760237e+01, -6.4008284232299033e+00],
+                         [-1.0, 1.0]])
+        x_size = abs(cell[0, 1] - cell[0, 0])
+        y_size = abs(cell[1, 1] - cell[1, 0])
+
+
+        universe = mda.Universe(position_file,
+                                topology=topology_file,
+                                format="LAMMPSDUMP")
+        ALL_ATOMS = universe.select_atoms("all")
+
+        ATOMS, MOLECS, BONDS = lammps_parser.parse_molecule_topology(topology_file)
+        ATOM_TYPES = {atom_id: atom["type"] for atom_id, atom in ATOMS.items()}
+        MOLEC_TYPES = {molec_id: [ATOM_TYPES[atom_id] for atom_id in molec] for molec_id, molec in MOLECS.items()}
+
+        # Find the terminal atoms, and group them into clusters.
+        TERMINALS = universe.select_atoms("type 2 or type 3")
+        TERMINAL_PAIRS = clustering.find_lj_pairs(TERMINALS.positions,
+                                       TERMINALS.ids,
+                                       1.5,
+                                       cell=cell)
+        TERMINAL_CLUSTERS = clustering.find_lj_clusters(TERMINAL_PAIRS)
+
+        BODIES = universe.select_atoms("type 4")
+        BODY_PAIRS = clustering.find_lj_pairs(BODIES.positions,
+                                   BODIES.ids,
+                                   1.0,
+                                   cell=cell)
+        body_molec_clusters = clustering.cluster_molecule_bodies(MOLECS, MOLEC_TYPES, [1, 4])
+        for i, cluster in body_molec_clusters.items():
+            BODY_PAIRS[i] = BODY_PAIRS[i].union(cluster)
+        BODY_CLUSTERS = clustering.find_lj_clusters(BODY_PAIRS)
+
+        # Sort the list of clusters into a consistent list so
+        # we can index them.
+        ALL_CLUSTERS = sorted(list(TERMINAL_CLUSTERS.union(BODY_CLUSTERS)))
+        CLUSTER_POSITIONS = clustering.find_cluster_centres(ALL_CLUSTERS,
+                                                 ALL_ATOMS.positions,
+                                                 cutoff=10.0)
+        MOLEC_TERMINALS = clustering.find_molecule_terminals(MOLECS,
+                                                             atom_types=MOLEC_TYPES,
+                                                             type_connections={2:[1, 4],      
+                                                                               3:[1, 4],
+                                                                               4:[2,3],
+                                                                               1:[2, 3]})
+        G = nx.Graph()
+        G = clustering.connect_clusters(G, MOLEC_TERMINALS, ALL_CLUSTERS)
+        ring_finder = rings.periodic_ring_finder.PeriodicRingFinder(G, CLUSTER_POSITIONS, np.array([x_size, y_size]))
+        FIG, AX = plt.subplots()
+        ring_finder.draw_onto(AX)
+        FIG.savefig("./test_clustering_error.pdf")
+        counts = Counter([len(ring) for ring in ring_finder.current_rings])
+        true_counts = {8: 6, 12: 5, 48: 2, 30: 2, 28: 1, 80: 1, 20: 1}
+        assert counts == true_counts
+
+
+
 

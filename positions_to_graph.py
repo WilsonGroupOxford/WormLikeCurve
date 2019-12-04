@@ -88,13 +88,11 @@ if __name__ == "__main__":
                                                                                                 1:[2, 3]})
     G = nx.Graph()
     G = connect_clusters(G, MOLEC_TERMINALS, ALL_CLUSTERS)
-    fig, ax = plt.subplots()
-    nx.draw(G, ax=ax, pos=CLUSTER_POSITIONS, node_size=1)
-    fig.show()
-    im = PIL.Image.open("./background.png")
-    ax.imshow(im, extent=[0, x_size, 0, y_size])
-    fig.savefig("./graph.pdf")
-
+    nx.write_edgelist(G, f"{position_file}_edges.dat", comments="#", delimiter=",")
+    with open(f"{position_file}_coords.dat", "w") as fi:
+        fi.write("# ID, x, y\n")
+        for key, value in sorted(CLUSTER_POSITIONS.items()):
+            fi.write(f"{key}, {value[0]}, {value[1]}\n")
     FIG, AX = plt.subplots()
     ring_finder = PeriodicRingFinder(G, CLUSTER_POSITIONS, np.array([x_size, y_size]))
     AX.set_xlim(-x_size * 0.5, x_size*1.5)
