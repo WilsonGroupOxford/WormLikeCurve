@@ -181,15 +181,15 @@ def find_molecule_terminals(molecules,
     for i, molec in molecules.items():
         molec_atom_types = atom_types[i]
         for j, atom in enumerate(molec):
-             try:
+            try:
                 to_connect = type_connections[molec_atom_types[j]]
-             except KeyError:
+            except KeyError:
                 # This molecule isn't in the connection dict,
                 # so don't connect it.
                 continue
-             for k, other_atom in enumerate(molec):
-                 if molec_atom_types[k] in to_connect:
-                     molec_terminals[atom].append(other_atom)
+            for k, other_atom in enumerate(molec):
+                if molec_atom_types[k] in to_connect:
+                    molec_terminals[atom].append(other_atom)
     return molec_terminals
 
 

@@ -74,7 +74,9 @@ class WormLikeCurve:
 
     def rotate(self, angle: float):
         """
-        Rotates the polymer about its centroid. Does this
+        Rotates the polymer about its centroid.
+        
+        Does this
         by rotating the vector representation, and reconverting
         into Cartesians. Then recentres.
         :param angle: the angle to rotate about in radians.
@@ -86,7 +88,9 @@ class WormLikeCurve:
     @property
     def num_atoms(self):
         """
-        Convenience property. Because bonds link two atoms, the
+        Convenience property.
+        
+        Because bonds link two atoms, the
         number of atoms is one more than the number of bonds.
         """
         return self.num_segments + 1
@@ -151,8 +155,6 @@ class WormLikeCurve:
         while True:
             iters_required += 1
             if iters_required > max_iters:
-                print("Too many iterations required this time,",
-                      "returning mean.")
                 return self.harmonic_bond.length
             length = np.random.uniform(min_length,
                                        max_length,
@@ -203,8 +205,6 @@ class WormLikeCurve:
         while True:
             iters_required += 1
             if iters_required > max_iters:
-                print("Too many iterations required this time,",
-                      "returning mean.")
                 return angle_bond.angle
             angle = np.random.uniform(min_angle,
                                       max_angle,

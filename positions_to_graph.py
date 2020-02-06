@@ -23,6 +23,7 @@ from rings.periodic_ring_finder import PeriodicRingFinder
 from rings.ring_finder import RingFinder
 LJ_BOND = 1.5
 
+
 if __name__ == "__main__":
     # Parsing section -- read the files, and split the atoms
     # and molecules into a few types. This could probably
@@ -88,6 +89,18 @@ if __name__ == "__main__":
                                                                                                 1:[2, 3]})
     G = nx.Graph()
     G = connect_clusters(G, MOLEC_TERMINALS, ALL_CLUSTERS)
+    body_attr_dict = defaultdict(dict)
+    terminal_attr_dict = defaultdict(dict)
+    for CLUSTER_ID, CLUSTER in enumerate(ALL_CLUSTERS):
+        if CLUSTER in BODY_CLUSTERS:
+            body_attr_dict[CLUSTER_ID]["type"] = "body"
+        elif CLUSTER in TERMINAL_CLUSTERS:
+            terminal_attr_dict[CLUSTER_ID]["type"] = "terminal"
+        else:
+            print(f"{CLUSTER} is not a valid cluster")
+    nx.set_node_attributes(G, body_attr_dict)
+    nx.set_node_attributes(G, terminal_attr_dict)
+
     nx.write_edgelist(G, f"{position_file}_edges.dat", comments="#", delimiter=",")
     with open(f"{position_file}_coords.dat", "w") as fi:
         fi.write("# ID, x, y\n")
@@ -98,13 +111,26 @@ if __name__ == "__main__":
     AX.set_xlim(-x_size * 0.5, x_size*1.5)
     AX.set_ylim(-y_size * 0.5, y_size*1.5)
     ring_finder.draw_onto(AX)
-   # for perimeter_ring in ring_finder.perimeter_rings:
-   #     edgelist = [tuple(item) for item in perimeter_ring.edges]
-   #     nx.draw_networkx_edges(ring_finder.graph, ax=AX, pos=CLUSTER_POSITIONS,
-   #                           edge_color="orange", zorder=1000, width=5,
-   #                           edgelist=edgelist)
-    FIG.show()
+    #for perimeter_ring in ring_finder.perimeter_rings:
+    #    edgelist = [tuple(item) for item in perimeter_ring.edges]
+    #    nx.draw_networkx_edges(ring_finder.graph, ax=AX, pos=CLUSTER_POSITIONS,
+    #                          edge_color="orange", zorder=1000, width=5,
+    #                          edgelist=edgelist)
     FIG.savefig("./network.pdf")
+    plt.close(FIG)
+
+    with open("./edge_lengths.dat", "w") as fi:
+        edge_lengths = ring_finder.analyse_edge_lengths()
+        fi.write("\n".join([f"{length:.3f}" for length in edge_lengths]))
+    
+    with open("./terminal_angles.dat", "w") as fi:
+        angles = ring_finder.analyse_node_angles(node_attrs="terminal")
+        fi.write("\n".join([f"{angle:.3f}" for angle in angles]))
+    
+    with open("./body_angles.dat", "w") as fi:
+        angles = ring_finder.analyse_node_angles(node_attrs="body")
+        fi.write("\n".join([f"{angle:.3f}" for angle in angles]))
+    
     with open("./coordination.dat", "w") as fi:
         coordination_counter = Counter([x[1] for x in G.degree])
         fi.write("Coordination, Frequency\n")

@@ -507,7 +507,7 @@ class TestIntegration:
         ring_finder.draw_onto(AX)
         FIG.savefig("./test_clustering_error.pdf")
         counts = Counter([len(ring) for ring in ring_finder.current_rings])
-        true_counts = {8: 6, 12: 5, 48: 2, 30: 2, 28: 1, 80: 1, 20: 1}
+        true_counts = {8: 19, 16: 6, 4: 5, 12: 5, 20: 3, 48: 1, 44: 1}
         assert counts == true_counts
 
 
