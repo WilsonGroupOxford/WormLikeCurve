@@ -22,13 +22,13 @@ class CurveCollection:
         except TypeError:
             curves = [curves]
         self.curves = curves
-        
+
     def __iter__(self):
         yield from self.curves
-        
+
     def __len__(self):
         return len(self.curves)
-    
+
     def __getitem__(self, key):
         return self.curves[key]
 
@@ -37,43 +37,79 @@ class CurveCollection:
 
     def __delitem__(self, key):
         del self.curves[key]
-  
+
+    def rescale(self, scale_factor: float):
+        """
+        Rescale the entire collection by a given factor.
+
+        Parameters
+        ----------
+        scale_factor : float
+            The amount to scale the box up by.
+
+        Returns
+        -------
+        None.
+
+        """
+        for curve in self:
+            curve.rescale(scale_factor)
+
+    def translate(self, translation: np.array):
+        """
+        Translate the entire collection by a given vector.
+
+        Parameters
+        ----------
+        scale_factor : float
+            The amount to scale the box up by.
+
+        Returns
+        -------
+        None.
+
+        """
+        assert translation.shape[0] == 2
+        for curve in self:
+            curve.translate(translation)
+
+
     @property
     def num_atoms(self):
         num_atoms = 0
         for curve in self.curves:
             num_atoms += curve.num_atoms
         return num_atoms
-            
+
     @property
     def num_bonds(self):
         num_bonds = 0
         for curve in self.curves:
             num_bonds += curve.num_bonds
         return num_bonds
-            
+
     @property
     def num_angles(self):
         num_angles = 0
         for curve in self.curves:
             num_angles += curve.num_angles
         return num_angles
-    
+
     @property
     def positions(self):
         return np.concatenate([curve.positions for curve in self.curves],
                               axis=0)
-            
+
     def append(self, curve):
         """
         Add a new curve into our collection.
         :param curve: the curve to be added
         """
         self.curves.append(curve)
- 
+
     def plot_onto(self,
                   ax,
-                  kwarg_list = [],
+                  kwarg_list=None,
                   fit_edges: bool = True,):
         """
         Plots these polymers as a collection of lines, detailed by kwargs
@@ -82,13 +118,17 @@ class CurveCollection:
         :param fit_edges: should the axis size be rearranged to fit
         :param **kwargs: keyword arguments to be passed to matplotlib
         """
+
+        if kwarg_list is None:
+            kwarg_list = []
+
         length_difference = len(self) - len(kwarg_list)
         if length_difference > 0:
             kwarg_list.extend([{} for _ in range(length_difference)])
         elif length_difference < 0:
-            print("More kwargs provided than there are curves." + 
+            print("More kwargs provided than there are curves." +
                   "Ignoring excess")
-        
+
         for i, curve in enumerate(self.curves):
             # Don't pass on edge fitting because we'll
             # do it here.
@@ -105,7 +145,8 @@ class CurveCollection:
             ax.set_ylim(min_corner, max_corner)
 
     def to_lammps(self,
-                  filename: str):
+                  filename: str,
+                  periodic_box=None):
         with open(filename, "w") as fi:
             # Header section
             fi.write("Polymer file\n\n")
@@ -121,15 +162,19 @@ class CurveCollection:
             fi.write("\t 1 \t bond types\n")
             fi.write("\t 1 \t angle types\n\n")
 
-            min_x, min_y = np.min(self.positions, axis=0)
-            max_x, max_y = np.max(self.positions, axis=0)
-            min_corner = (min(min_x, min_y) * 1.1) - 0.1
-            max_corner = (max(max_x, max_y) * 1.1) + 0.1
+            if periodic_box is None:
+                min_x, min_y = np.min(self.positions, axis=0)
+                max_x, max_y = np.max(self.positions, axis=0)
+                min_corner = (min(min_x, min_y) * 1.1) - 0.1
+                max_corner = (max(max_x, max_y) * 1.1) + 0.1
 
-            fi.write(f"\t {min_corner:.3f} {max_corner:.3f} \t xlo xhi\n")
-            fi.write(f"\t {min_corner:.3f} {max_corner:.3f} \t ylo yhi\n")
-            fi.write(f"\t -1.0 1.0 \t zlo zhi\n\n")
-
+                fi.write(f"\t {min_corner:.3f} {max_corner:.3f} \t xlo xhi\n")
+                fi.write(f"\t {min_corner:.3f} {max_corner:.3f} \t ylo yhi\n")
+                fi.write(f"\t -1.0 1.0 \t zlo zhi\n\n")
+            else:
+                fi.write(f"\t {periodic_box[0,0]:.3f} {periodic_box[0,1]:.3f} \t xlo xhi\n")
+                fi.write(f"\t {periodic_box[1,0]:.3f} {periodic_box[1,1]:.3f} \t ylo yhi\n")
+                fi.write(f"\t -1.0 1.0 \t zlo zhi\n\n")
             # Masses
             fi.write("Masses\n\n")
             for atom_type in atom_types:
@@ -154,7 +199,6 @@ class CurveCollection:
             bond_id = 0
             total_atoms = 1
             for curve in self.curves:
-                print(curve.bonds)
                 for atom_a, atom_b in curve.bonds:
                     bond_id += 1
                     # format:
@@ -165,7 +209,7 @@ class CurveCollection:
                 # Skip over one atom because end of curves[0]
                 # is not connected to start of curves[1]
                 total_atoms += curve.num_atoms
- 
+
             fi.write("\n")
 
             # Angles
