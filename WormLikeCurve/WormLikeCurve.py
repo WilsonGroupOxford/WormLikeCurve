@@ -17,15 +17,16 @@ from WormLikeCurve.CurveCollection import CurveCollection
 
 class WormLikeCurve:
     """
-    A class describing a Worm-like curve polymer. By default,
-    it will generate a boltzmann distribution of segments. This
-    can be sorted by overwriting the vectors array.
+    A class describing a Worm-like curve polymer.
 
+    By default, it will generate a boltzmann distribution of segments. This
+    can be sorted by overwriting the vectors array.
     The polymer is internally a collection of vectors,
     each described by a length and the angle of that vector
     with the positive x axis. Positions are calculated on
     the fly from this.
     """
+
     def __init__(self,
                  num_segments: int,
                  harmonic_bond: HarmonicBond,
@@ -106,9 +107,7 @@ class WormLikeCurve:
         return self.start_pos + np.array([x_step, y_step])
 
     def recentre(self):
-        """
-        Recentre the polymer so that its centre of mass is at start_pos.
-        """
+        """Recentre the polymer so that its centre of mass is at start_pos."""
         self._positions_dirty = True
         self.start_pos = self.centroid
 
@@ -153,7 +152,7 @@ class WormLikeCurve:
     @property
     def num_atoms(self):
         """
-        Convenience property.
+        Return the number of atoms in the polymer.
 
         Because bonds link two atoms, the
         number of atoms is one more than the number of bonds.
@@ -162,13 +161,13 @@ class WormLikeCurve:
 
     @property
     def num_bonds(self):
-        """Alias for num_bonds."""
+        """Return the number of segments/bonds in the polymer."""
         return self.num_segments
 
     @property
     def num_angles(self):
         """
-        Convenience property.
+        Return the number of angle bonds in the polymer.
 
         Two bonds are linked by an angle,
         so the number of angles is one less than the number of bonds.
@@ -276,6 +275,29 @@ class WormLikeCurve:
             if probability > np.random.uniform():
                 return angle
 
+    def positions_to_vectors(self):
+        """Convert the [x, y] positions back into vectors."""
+        start_pos = self.positions[0, :]
+        last_pos = start_pos
+        vectors = []
+        for position in self.positions[1:, :]:
+            step = position - last_pos
+            step_length = np.hypot(*step)
+            normalised_step = step / step_length
+            # The projection of this vector onto the x axis is
+            # the x component
+            angle_with_x = np.arccos(normalised_step[0])
+            # Careful with quadrants!
+            if normalised_step[1] < 0:
+                angle_with_x = 2*np.pi - angle_with_x
+            vectors.append(np.array([step_length, angle_with_x]))
+            last_pos = position
+        # Finally, assign these to the class
+        self.start_pos = start_pos
+        self.vectors = np.vstack(vectors)
+        return self.vectors
+
+
     def vectors_to_positions(self):
         """Convert the [r, theta] vectors into Cartesian coordinates."""
         positions = np.empty([self.num_segments + 1, 2])
@@ -344,3 +366,24 @@ class WormLikeCurve:
         :param filename: the name of the file to write to.
         """
         CurveCollection(self).to_lammps(filename)
+
+    def apply_transformation_matrix(self, matrix: np.array):
+        """
+        Apply an arbitrary transformation to the polymer.
+
+        This transformation is a 2x2 matrix with real
+        components that represents a 2D scale, skew etc.
+        Rotation and isotropic scaling matrices are specialised in
+        rotate() and rescale() functions with some safety checks.
+        This does not recentre on the origin for rotations,
+        so best to use rotate() for that.
+
+        :param matrix: the 2x2 transformation matrix
+        """
+        for i, position in enumerate(self.positions):
+            self.positions[i, :] = np.matmul(matrix, position)
+        # Keep the vector representation in line with the
+        # cartesian representation.
+        self.positions_to_vectors()
+        return self
+

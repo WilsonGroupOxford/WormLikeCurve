@@ -23,6 +23,7 @@ class CurveCollection:
             curves = [curves]
         self.curves = curves
 
+
     def __iter__(self):
         yield from self.curves
 
@@ -73,6 +74,22 @@ class CurveCollection:
         for curve in self:
             curve.translate(translation)
 
+    def apply_transformation_matrix(self, transformation_matrix):
+        """
+        Apply an arbitrary transformation to each polymer
+
+        This transformation is a 2x2 matrix with real
+        components that represents a 2D scale, skew etc.
+        Rotation and isotropic scaling matrices are specialised in
+        rotate() and rescale() functions with some safety checks.
+        This does not recentre on the origin for rotations,
+        so best to use rotate() for that.
+
+        :param matrix: the 2x2 transformation matrix
+        """
+        for curve in self:
+            curve.apply_transformation_matrix(transformation_matrix)
+        return self
 
     @property
     def num_atoms(self):
