@@ -325,6 +325,8 @@ class WormLikeCurve:
         :param ax: a matplotlib axis object to plot onto
         :param fit_edges: whether to resize xlim and ylim to fit this polymer.
         """
+
+        END_SIZE = kwargs.pop("end_size", 0.2)
         lines = []
         for i in range(self.num_segments):
             predecessor = self.bonds[i][0]
@@ -332,9 +334,11 @@ class WormLikeCurve:
                                        self.positions[i + 1]]))
         line_collection = LineCollection(lines, **kwargs)
         ax.add_collection(line_collection)
-
+        _ = kwargs.pop("linewidths", None)
+        _ = kwargs.pop("colors", None)
         # Now draw the sticky ends
-        END_SIZE = 0.2
+        
+        
         for i in range(self.positions.shape[0]):
             if self.atom_types[i] == 1:
                 color = "purple"

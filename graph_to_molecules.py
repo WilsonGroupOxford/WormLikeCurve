@@ -14,11 +14,15 @@ from WormLikeCurve.Bonds import HarmonicBond, AngleBond
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+from collections import defaultdict
 from typing import Dict
 
-COLOUR_TO_TYPE = {0: (2,), 1: (3,)}
-CORRESPONDING_COLOURS = {2: 3, 3: 2}
 UNKNOWN_COLOUR = (2, 3)
+COLOUR_TO_TYPE = defaultdict(lambda: UNKNOWN_COLOUR)
+COLOUR_TO_TYPE[0] = (2,)
+COLOUR_TO_TYPE[0] = (3,)
+CORRESPONDING_COLOURS = {2: 3, 3: 2, 4:4, 5:5, 6:6, 7:7, 8:8}
+COLOUR_LUT = {2:"blue", 3:"green", 4:"orange", 5:"red", 6:"purple", 7:"pink", 8:"brown"}
 
 
 def load_morley(prefix: str):
@@ -72,10 +76,9 @@ def colour_graph(graph: nx.Graph,
     :param corresponding_types: a dictionary with a set of types in it,
     each of which corresponds to one other.
     """
-    colours = nx.algorithms.coloring.greedy_color(graph)
+    colours = nx.algorithms.coloring.greedy_color(graph, strategy="smallest_last", interchange=True)
     for key, value in colours.items():
         colours[key] = colour_to_type.get(value, UNKNOWN_COLOUR)
-    print(colours)
     nx.set_node_attributes(graph, colours, "color")
     return graph
 
@@ -180,8 +183,20 @@ def graph_to_molecules(graph: nx.Graph,
                               harmonic_bond=harmonic_bond,
                               angle_bond=angle_bond,
                               start_pos=starting_point)
-        curve.atom_types[0] = random.choice(graph.nodes(data=True)[u]["color"])
-        curve.atom_types[-1] = CORRESPONDING_COLOURS[curve.atom_types[0]]
+        # Check if we know either of the end colours
+        u_colour = graph.nodes(data=True)[u]["color"]
+        v_colour = graph.nodes(data=True)[v]["color"]
+        if len(u_colour) == 1:
+            curve.atom_types[0] = u_colour[0]
+            curve.atom_types[-1] = CORRESPONDING_COLOURS[u_colour[0]]
+        elif len(v_colour) == 1:
+            curve.atom_types[-1] = v_colour[0]
+            curve.atom_types[0] = CORRESPONDING_COLOURS[v_colour[0]]
+        else:
+            # We don't know either!
+            random_u_choice = random.choice(u_colour)
+            curve.atom_types[0] = random_u_choice
+            curve.atom_types[-1] = CORRESPONDING_COLOURS[random_u_choice]
         curve.start_pos = starting_point
         curve.vectors = np.array([[segment_length, angle] for i in range(num_segments)])
         curve.vectors_to_positions()
@@ -298,6 +313,7 @@ def construct_hex_lattice(num_nodes: int, bond_length: float = 1.0) -> CurveColl
         pos[key] = np.array(val)
     periodic_box = np.array([[0.0, 1.5 * num_nodes],
                              [0.0, num_nodes * np.sqrt(3)]])
+    hex_graph = colour_graph(hex_graph)
     curves = graph_to_molecules(hex_graph,
                                 pos,
                                 periodic_box=periodic_box,
@@ -359,6 +375,69 @@ def construct_alt_sq_lattice(num_squares: int, bond_length: float = 1.0) -> Curv
     return curves, periodic_box
 
 
+def draw_periodic_coloured(graph, pos, periodic_box, ax=None):
+    if ax is None:
+        _, ax = plt.subplots()
+    EDGE_LIST = []
+    periodic_edge_list = []
+    for u, v in graph.edges():
+        distance = np.abs(pos[v] - pos[u])
+        if distance[0] < periodic_box[0, 1] / 2 and distance[1] < periodic_box[1, 1] / 2:
+            EDGE_LIST.append((u, v))
+        else:
+            periodic_edge_list.append((u, v))
+    NODES_IN_EDGE_LIST = set([item for edge_pair in EDGE_LIST
+                              for item in edge_pair])
+    NODES_IN_EDGE_LIST = list(NODES_IN_EDGE_LIST)
+
+    periodic_nodes = set([item for edge_pair in periodic_edge_list
+                              for item in edge_pair])
+    periodic_nodes = list(periodic_nodes)
+
+    node_colours = {node_id: COLOUR_LUT[colour[0]] for node_id, colour in graph.nodes(data="color")}
+    nx.draw(graph,
+            pos=pos,
+            ax=ax,
+            node_size=10,
+            node_color=[node_colours[node_id] for node_id in NODES_IN_EDGE_LIST],
+            edgelist=EDGE_LIST,
+            nodelist=NODES_IN_EDGE_LIST,
+            font_size=8, edgecolors="black", linewidths=0.5)
+
+
+    
+    for u, v in periodic_edge_list:
+        new_pos = {key: value for key, value in pos.items()}
+        gradient = pos[v] - pos[u]
+        # If we're in a periodic box, we have to apply the
+        # minimum image convention. Do this by creating
+        # a virtual position for v, which is a box length away.
+        minimum_image_x = (periodic_box[0, 1] - periodic_box[0, 0]) / 2
+        minimum_image_y = (periodic_box[1, 1] - periodic_box[1, 0]) / 2
+
+        # We need the += and -= to cope with cases where we're out in
+        # both x and y.
+        new_pos_v = pos[v]
+        if gradient[0] > minimum_image_x:
+            new_pos_v -= np.array([2 * minimum_image_x, 0.0])
+        elif gradient[0] < -minimum_image_x:
+            new_pos_v += np.array([2 * minimum_image_x, 0.0])
+
+        if gradient[1] > minimum_image_y:
+            new_pos_v -= np.array([0, 2 * minimum_image_y])
+        elif gradient[1] < -minimum_image_y:
+            new_pos_v += np.array([0, 2 * minimum_image_y])
+        new_pos[v] = new_pos_v
+        nx.draw(graph,
+                pos=new_pos,
+                ax=ax,
+                node_size=10,
+                node_color=[node_colours[node_id] for node_id in (u, v)],
+                edgelist=[(u, v)],
+                nodelist=[u, v], style="dashed", edgecolors="black", linewidths=0.5)
+    return ax
+
+
 if __name__ == "__main__":
     # FIG, AX = plt.subplots()
     SCALE_FACTOR = 1.0
@@ -381,14 +460,29 @@ if __name__ == "__main__":
         TRANSFORMATION_MATRIX = np.array([[float(sys.argv[1]), float(sys.argv[2])],
                                           [float(sys.argv[3]), float(sys.argv[4])]])
         MORLEY_PREFIX = sys.argv[6]
-    #CURVES, PERIODIC_BOX = construct_hex_lattice(6)
-    #CURVES.plot_onto(AX)
-    #CURVES.to_lammps("./polymer_total.data", periodic_box=PERIODIC_BOX)
-    #GRID_CURVES, GRID_PERIODIC_BOX = construct_alt_sq_lattice(6, bond_length = SCALE_FACTOR)
-    #if TRANSFORMATION_MATRIX is not None:
-    #    GRID_CURVES.apply_transformation_matrix(TRANSFORMATION_MATRIX)
-    #GRID_CURVES.to_lammps("./polymer_total.data", periodic_box=GRID_PERIODIC_BOX)
+    FIG, AX = plt.subplots()
+    CURVES, PERIODIC_BOX = construct_hex_lattice(6)
+    kwarg_list = [{"end_size":0.8, "linewidths":0, "colors":"black"} for _ in range(len(CURVES))]
+    CURVES.plot_onto(AX, kwarg_list)
+    AX.set_axis_off()
+    FIG.savefig("./hex-graph.pdf")
+    plt.close(FIG)
+
+    FIG, AX = plt.subplots()
+    GRID_CURVES, GRID_PERIODIC_BOX = construct_alt_sq_lattice(6, bond_length = SCALE_FACTOR)
+    if TRANSFORMATION_MATRIX is not None:
+        GRID_CURVES.apply_transformation_matrix(TRANSFORMATION_MATRIX)
+    kwarg_list = [{"end_size":0.8, "linewidths":0, "colors":"black"} for _ in range(len(GRID_CURVES))]
+    GRID_CURVES.plot_onto(AX, kwarg_list)
+    AX.set_axis_off()
+    FIG.savefig("./altsq-graph.pdf")
+    GRID_CURVES.to_lammps("./polymer_total.data", periodic_box=GRID_PERIODIC_BOX)
     MORLEY_POS, MORLEY_GRAPH, MORLEY_BOX = load_morley(MORLEY_PREFIX)
+
+    FIG, AX = plt.subplots()
+    draw_periodic_coloured(MORLEY_GRAPH, MORLEY_POS, MORLEY_BOX, ax=AX)
+    FIG.savefig("./morley_coloured.pdf")
+    plt.close(FIG)
     MORLEY_CURVES = graph_to_molecules(MORLEY_GRAPH,
                                 MORLEY_POS,
                                 periodic_box=MORLEY_BOX,
@@ -397,4 +491,9 @@ if __name__ == "__main__":
     MORLEY_CURVES.rescale(scale_factor)
     if TRANSFORMATION_MATRIX is not None:
          MORLEY_CURVES.apply_transformation_matrix(TRANSFORMATION_MATRIX)
+    FIG, AX = plt.subplots()
+    kwarg_list = [{"end_size":0.8, "linewidths":0, "colors":"black"} for _ in range(len(MORLEY_CURVES))]
+    MORLEY_CURVES.plot_onto(AX, kwarg_list)
+    AX.set_axis_off()
+    FIG.savefig("morley_molecs.pdf")
     MORLEY_CURVES.to_lammps("./polymer_total.data", periodic_box=MORLEY_BOX)
