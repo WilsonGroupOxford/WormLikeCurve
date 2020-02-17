@@ -6,9 +6,10 @@ Created on Tue Oct  8 09:17:37 2019
 @author: matthew-bailey
 """
 
-import networkx as nx
-import matplotlib.pyplot as plt
 from collections import Counter
+
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 
 

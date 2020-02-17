@@ -12,14 +12,15 @@ particles into single graph nodes and connecting them.
 
 from collections import Counter
 
+import matplotlib.pyplot as plt
+import MDAnalysis as mda
+import networkx as nx
+import numpy as np
 import pytest
+
 import clustering
 import lammps_parser
 import rings.periodic_ring_finder
-import numpy as np
-import MDAnalysis as mda
-import networkx as nx
-import matplotlib.pyplot as plt
 
 
 def generate_polygon(

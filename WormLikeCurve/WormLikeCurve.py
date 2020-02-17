@@ -6,13 +6,13 @@ Created on Tue Sep 24 14:29:00 2019
 @author: matthew-bailey
 """
 
-import numpy as np
 import matplotlib.patches as mpatches
+import numpy as np
 from matplotlib.collections import LineCollection
-from WormLikeCurve.Bonds import HarmonicBond, AngleBond
-from WormLikeCurve.Helpers import boltzmann_distrib
 
+from WormLikeCurve.Bonds import AngleBond, HarmonicBond
 from WormLikeCurve.CurveCollection import CurveCollection
+from WormLikeCurve.Helpers import boltzmann_distrib
 
 
 class WormLikeCurve:

@@ -6,11 +6,11 @@ Created on Mon Oct 28 11:53:02 2019
 @author: matthew-bailey
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-import scipy.stats
-import scipy.odr
 import networkx as nx
+import numpy as np
+import scipy.odr
+import scipy.stats
 
 import clustering
 

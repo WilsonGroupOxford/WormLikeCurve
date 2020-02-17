@@ -7,12 +7,13 @@ Created on Mon Sep 23 09:30:33 2019
 """
 
 import sys
-import numpy as np
-import matplotlib.pyplot as plt
 
-from WormLikeCurve.WormLikeCurve import WormLikeCurve
+import matplotlib.pyplot as plt
+import numpy as np
+
+from WormLikeCurve.Bonds import AngleBond, HarmonicBond
 from WormLikeCurve.CurveCollection import CurveCollection
-from WormLikeCurve.Bonds import HarmonicBond, AngleBond
+from WormLikeCurve.WormLikeCurve import WormLikeCurve
 
 KBT = 1.0  # atomic units
 BOND_VAR = 1.0

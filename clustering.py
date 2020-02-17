@@ -7,6 +7,7 @@ Created on Wed Oct 30 14:51:06 2019
 """
 
 from collections import defaultdict
+
 import numpy as np
 import scipy.spatial.distance
 

@@ -6,16 +6,18 @@ Created on Thu Feb  6 14:01:29 2020
 @author: matthew-bailey
 """
 
-import sys
-import networkx as nx
-from WormLikeCurve.WormLikeCurve import WormLikeCurve
-from WormLikeCurve.CurveCollection import CurveCollection
-from WormLikeCurve.Bonds import HarmonicBond, AngleBond
-import matplotlib.pyplot as plt
-import numpy as np
 import random
+import sys
 from collections import defaultdict
 from typing import Dict
+
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+
+from WormLikeCurve.Bonds import AngleBond, HarmonicBond
+from WormLikeCurve.CurveCollection import CurveCollection
+from WormLikeCurve.WormLikeCurve import WormLikeCurve
 
 UNKNOWN_COLOUR = (2, 3)
 COLOUR_TO_TYPE = defaultdict(lambda: UNKNOWN_COLOUR)

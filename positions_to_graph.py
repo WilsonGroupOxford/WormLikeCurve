@@ -7,23 +7,15 @@ Created on Wed Oct  9 13:26:50 2019
 """
 
 import sys
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 
-import MDAnalysis as mda
-import numpy as np
-import networkx as nx
 import matplotlib.pyplot as plt
-
+import MDAnalysis as mda
+import networkx as nx
+import numpy as np
 import PIL
 
-from clustering import (
-    find_lj_pairs,
-    find_lj_clusters,
-    find_cluster_centres,
-    find_molecule_terminals,
-    connect_clusters,
-    cluster_molecule_bodies,
-)
+from clustering import *
 from lammps_parser import parse_molecule_topology
 from rings.periodic_ring_finder import PeriodicRingFinder
 from rings.ring_finder import RingFinder
