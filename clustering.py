@@ -11,10 +11,7 @@ import numpy as np
 import scipy.spatial.distance
 
 
-def find_lj_pairs(positions,
-                  ids,
-                  cutoff : float,
-                  cell=None):
+def find_lj_pairs(positions, ids, cutoff: float, cell=None):
     """
     Find a set of mini-clusters based around each atom. A mini
     cluster contains all the other atoms within a pairwise cutoff
@@ -41,11 +38,17 @@ def find_lj_pairs(positions,
         z_mic = np.abs(cell[2, 1] - cell[2, 0]) / 2
 
         # Precalculate some cell offsets to save time.
-        offsets = [(x, y, z) for x in range(-1, 2) for y in range(-1, 2) for z in range(-1, 2)]
+        offsets = [
+            (x, y, z) for x in range(-1, 2) for y in range(-1, 2) for z in range(-1, 2)
+        ]
         offsets.remove((0, 0, 0))
         offsets = [np.array(offset) for offset in offsets]
-        cell_offsets = [offset * np.array([x_mic * 2, y_mic*2, z_mic*2]) for offset in offsets]
-        sq_cell_offsets = [np.dot(cell_offset, cell_offset) for cell_offset in cell_offsets]
+        cell_offsets = [
+            offset * np.array([x_mic * 2, y_mic * 2, z_mic * 2]) for offset in offsets
+        ]
+        sq_cell_offsets = [
+            np.dot(cell_offset, cell_offset) for cell_offset in cell_offsets
+        ]
         min_mic = min([x_mic, y_mic])
         outside_mic = np.argwhere(distances > min_mic)
 
@@ -62,23 +65,27 @@ def find_lj_pairs(positions,
             if np.all(np.abs(positions[j, :] - cell[:, 0]) > cutoff):
                 if np.all(np.abs(positions[j, :] - cell[:, 1]) > cutoff):
                     continue
-            
+
             vector = positions[i, :] - positions[j, :]
             distance = distances[i, j]
-            sq_distance = distance**2
+            sq_distance = distance ** 2
             new_distance = sq_distance
 
             for i_offset, offset in enumerate(offsets):
                 cell_offset = cell_offsets[i_offset]
-                this_distance = sq_distance + sq_cell_offsets[i_offset] - 2 * np.dot(vector, cell_offset)
+                this_distance = (
+                    sq_distance
+                    + sq_cell_offsets[i_offset]
+                    - 2 * np.dot(vector, cell_offset)
+                )
                 if this_distance < new_distance:
                     new_distance = this_distance
-                
+
                 # This one is within the cutoff, so let's just bail out.
                 # I don't care if it's the closest or not.
                 if new_distance < cutoff:
                     break
-            
+
             distances[i, j] = np.sqrt(new_distance)
             distances[j, i] = np.sqrt(new_distance)
     within_cutoff = np.argwhere(distances < cutoff)
@@ -92,10 +99,10 @@ def find_lj_pairs(positions,
             atom_1_id, atom_2_id = ids[atom_1], ids[atom_2]
             lj_pairs[atom_1_id].add(atom_2_id)
             lj_pairs[atom_2_id].add(atom_1_id)
-    
+
     # If an atom has no neighbours, the within_cutoff
     # array doesn't have an entry for it. Make sure
-    # that we explicitly give this a pair of itself.     
+    # that we explicitly give this a pair of itself.
     for atom_1 in range(positions.shape[0]):
         atom_1_id = ids[atom_1]
         lj_pairs[atom_1_id].add(atom_1_id)
@@ -119,9 +126,9 @@ def find_lj_clusters(pair_dict, max_depth=10):
         # and so on recursively.
         old_set = value
         for _ in range(max_depth):
-            set_neighbours = set(item
-                                 for neighbour in old_set
-                                 for item in pair_dict[neighbour])
+            set_neighbours = set(
+                item for neighbour in old_set for item in pair_dict[neighbour]
+            )
             set_neighbours.update(old_set)
             if old_set != set_neighbours:
                 old_set = set_neighbours
@@ -131,10 +138,9 @@ def find_lj_clusters(pair_dict, max_depth=10):
     return clusters
 
 
-def find_cluster_centres(clusters,
-                         atom_positions,
-                         offset: int = 1,
-                         cutoff: float = None):
+def find_cluster_centres(
+    clusters, atom_positions, offset: int = 1, cutoff: float = None
+):
     """
     Finds the centroid of all clusters of Lennard-Jones atoms.
     Can take periodic boundary conditions into account.
@@ -166,12 +172,10 @@ def find_cluster_centres(clusters,
     return cluster_positions
 
 
-def find_molecule_terminals(molecules,
-                            atom_types,
-                            type_connections):
+def find_molecule_terminals(molecules, atom_types, type_connections):
     """
     Finds the sticky ends of a LAMMPS molecule.
-    Connects each node to 
+    Connects each node to
     :param molecules: a dictionary of molecules, with molecule ids as keys and values a list of atoms in that molecule.
     :param atom_types: a dictionary of molecules, with molecule ids as keys and the values a list of atom types.
     :param type_connections: a dictionary of molecule ids, containing a tuple of the types of atoms we wish to connect this to.
@@ -206,21 +210,26 @@ def connect_clusters(graph, terminals, clusters):
     for i, cluster in enumerate(clusters):
         for atom in cluster:
             for other_molec_end in terminals[atom]:
-                is_connected = np.array([other_molec_end in other_cluster
-                                         for other_cluster in clusters])
-                connected_clusters = [item for sublist in np.argwhere(is_connected)
-                                      for item in sublist]
+                is_connected = np.array(
+                    [other_molec_end in other_cluster for other_cluster in clusters]
+                )
+                connected_clusters = [
+                    item for sublist in np.argwhere(is_connected) for item in sublist
+                ]
                 for other_cluster in connected_clusters:
                     added_edges.add(frozenset([i, other_cluster]))
                     graph.add_edge(i, other_cluster)
     if len(added_edges) == 0:
-        raise RuntimeError("Did not connect any clusters together. Double check type_connections" + 
-                           " in find_molecule_terminals, or your cutoff radius.")
+        raise RuntimeError(
+            "Did not connect any clusters together. Double check type_connections"
+            + " in find_molecule_terminals, or your cutoff radius."
+        )
     return graph
+
 
 def cluster_molecule_bodies(molecs, molec_types, types_to_cluster):
     """
-    Clusters all the sites of the same type within a single molecule, so they act 
+    Clusters all the sites of the same type within a single molecule, so they act
     as a unified 'body' cluster.
     :param molecs: a dictionary of molecules, with molecule ids as keys and values a list of atoms in that molecule.
     :param molec_types: a dictionary of molecules, with molecule ids as keys and the values a list of atom types.
@@ -229,9 +238,16 @@ def cluster_molecule_bodies(molecs, molec_types, types_to_cluster):
     """
     lj_clusters = defaultdict(set)
     for molec_id, molec in molecs.items():
-        atoms_of_type = [atom_type in types_to_cluster for atom_type in molec_types[molec_id]]
-        pairs = [(molec[i], molec[j]) for j in range(len(atoms_of_type)) if atoms_of_type[j]
-                        for i in range(len(atoms_of_type)) if atoms_of_type[i]]
+        atoms_of_type = [
+            atom_type in types_to_cluster for atom_type in molec_types[molec_id]
+        ]
+        pairs = [
+            (molec[i], molec[j])
+            for j in range(len(atoms_of_type))
+            if atoms_of_type[j]
+            for i in range(len(atoms_of_type))
+            if atoms_of_type[i]
+        ]
         for atom_1, atom_2 in pairs:
             lj_clusters[atom_1].add(atom_2)
             lj_clusters[atom_2].add(atom_1)

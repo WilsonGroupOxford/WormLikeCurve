@@ -27,12 +27,14 @@ class WormLikeCurve:
     the fly from this.
     """
 
-    def __init__(self,
-                 num_segments: int,
-                 harmonic_bond: HarmonicBond,
-                 angle_bond: AngleBond,
-                 start_pos=np.array([0, 0]),
-                 kbt: float = 1.0):
+    def __init__(
+        self,
+        num_segments: int,
+        harmonic_bond: HarmonicBond,
+        angle_bond: AngleBond,
+        start_pos=np.array([0, 0]),
+        kbt: float = 1.0,
+    ):
         """
         Initialise the polymer object.
 
@@ -53,10 +55,10 @@ class WormLikeCurve:
         self.bonds = []
         for i in range(num_segments):
             length = self.generate_length()
-            angle = self.generate_angle(self.angle_bond,
-                                        min_angle=0.0 * np.pi,
-                                        max_angle=2.0 * np.pi)
-            self.bonds.append((i, i+1))
+            angle = self.generate_angle(
+                self.angle_bond, min_angle=0.0 * np.pi, max_angle=2.0 * np.pi
+            )
+            self.bonds.append((i, i + 1))
             self.vectors[i, :] = length, angle
 
         # Assign atom types -- the
@@ -90,7 +92,9 @@ class WormLikeCurve:
         assert 0 < proportion, "Proportion must be a positive number between 0 and 1"
         assert 1 >= proportion, "Proportion must be a positive number between 0 and 1"
         num_body_atoms = self.num_atoms - 2
-        body_atoms = np.random.choice([1, 4], p=[1.0-proportion, proportion], size=num_body_atoms)
+        body_atoms = np.random.choice(
+            [1, 4], p=[1.0 - proportion, proportion], size=num_body_atoms
+        )
         self.atom_types[1:-1] = body_atoms
 
     @property
@@ -174,10 +178,9 @@ class WormLikeCurve:
         """
         return self.num_segments - 1
 
-    def generate_length(self,
-                        min_length: float = None,
-                        max_length: float = None,
-                        max_iters: int = 10):
+    def generate_length(
+        self, min_length: float = None, max_length: float = None, max_iters: int = 10
+    ):
         """
         Generate a bond length for the harmonic bonds with a correct Boltzmann distribution.
 
@@ -206,8 +209,9 @@ class WormLikeCurve:
             raise ValueError("Minimum length must be positive")
 
         if max_length < min_length:
-            raise ValueError("Maximum length must be greater than or" +
-                             "equal to minimum length")
+            raise ValueError(
+                "Maximum length must be greater than or" + "equal to minimum length"
+            )
 
         if max_iters < 0:
             raise ValueError("Maximum iterations must be a positive integer")
@@ -216,19 +220,18 @@ class WormLikeCurve:
             iters_required += 1
             if iters_required > max_iters:
                 return self.harmonic_bond.length
-            length = np.random.uniform(min_length,
-                                       max_length,
-                                       1)
-            probability = boltzmann_distrib(self.harmonic_bond.energy(length),
-                                            self.kbt)
+            length = np.random.uniform(min_length, max_length, 1)
+            probability = boltzmann_distrib(self.harmonic_bond.energy(length), self.kbt)
             if probability > np.random.uniform():
                 return length
 
-    def generate_angle(self,
-                       angle_bond=None,
-                       min_angle: float = 0,
-                       max_angle: float = 2 * np.pi,
-                       max_iters: int = 10):
+    def generate_angle(
+        self,
+        angle_bond=None,
+        min_angle: float = 0,
+        max_angle: float = 2 * np.pi,
+        max_iters: int = 10,
+    ):
         """
         Generate a bond angle for the angular with a correct Boltzmann distribution.
 
@@ -247,16 +250,15 @@ class WormLikeCurve:
             angle_bond = self.angle_bond
 
         if min_angle < 0 or min_angle > 2 * np.pi:
-            raise ValueError("Minimum angle must be in the range" +
-                             "0 to 2 pi.")
+            raise ValueError("Minimum angle must be in the range" + "0 to 2 pi.")
 
         if max_angle < min_angle:
-            raise ValueError("Maximum angle must be greater than or" +
-                             "equal to minimum angle")
+            raise ValueError(
+                "Maximum angle must be greater than or" + "equal to minimum angle"
+            )
 
         if max_angle < 0 or max_angle > 2 * np.pi:
-            raise ValueError("Minimum angle must be in the range" +
-                             "0 to 2 pi.")
+            raise ValueError("Minimum angle must be in the range" + "0 to 2 pi.")
 
         if max_iters < 0:
             raise ValueError("Maximum iterations must be a positive integer")
@@ -266,12 +268,9 @@ class WormLikeCurve:
             iters_required += 1
             if iters_required > max_iters:
                 return angle_bond.angle
-            angle = np.random.uniform(min_angle,
-                                      max_angle,
-                                      1)
+            angle = np.random.uniform(min_angle, max_angle, 1)
 
-            probability = boltzmann_distrib(angle_bond.energy(angle),
-                                            self.kbt)
+            probability = boltzmann_distrib(angle_bond.energy(angle), self.kbt)
             if probability > np.random.uniform():
                 return angle
 
@@ -289,7 +288,7 @@ class WormLikeCurve:
             angle_with_x = np.arccos(normalised_step[0])
             # Careful with quadrants!
             if normalised_step[1] < 0:
-                angle_with_x = 2*np.pi - angle_with_x
+                angle_with_x = 2 * np.pi - angle_with_x
             vectors.append(np.array([step_length, angle_with_x]))
             last_pos = position
         # Finally, assign these to the class
@@ -297,15 +296,13 @@ class WormLikeCurve:
         self.vectors = np.vstack(vectors)
         return self.vectors
 
-
     def vectors_to_positions(self):
         """Convert the [r, theta] vectors into Cartesian coordinates."""
         positions = np.empty([self.num_segments + 1, 2])
         positions[0, :] = self.start_pos
         for i in range(self.num_segments):
             length, angle = self.vectors[i]
-            vector = np.array([length * np.cos(angle),
-                               length * np.sin(angle)])
+            vector = np.array([length * np.cos(angle), length * np.sin(angle)])
             predecessor = self.bonds[i][0]
             positions[i + 1] = positions[predecessor] + vector
 
@@ -315,10 +312,7 @@ class WormLikeCurve:
         self._positions_dirty = False
         return self._positions
 
-    def plot_onto(self,
-                  ax,
-                  fit_edges: bool = True,
-                  **kwargs):
+    def plot_onto(self, ax, fit_edges: bool = True, **kwargs):
         """
         Plot this polymer as a collection of lines, detailed by kwargs into the provided axis.
 
@@ -330,15 +324,15 @@ class WormLikeCurve:
         lines = []
         for i in range(self.num_segments):
             predecessor = self.bonds[i][0]
-            lines.append(np.row_stack([self.positions[predecessor],
-                                       self.positions[i + 1]]))
+            lines.append(
+                np.row_stack([self.positions[predecessor], self.positions[i + 1]])
+            )
         line_collection = LineCollection(lines, **kwargs)
         ax.add_collection(line_collection)
         _ = kwargs.pop("linewidths", None)
         _ = kwargs.pop("colors", None)
         # Now draw the sticky ends
-        
-        
+
         for i in range(self.positions.shape[0]):
             if self.atom_types[i] == 1:
                 color = "purple"
@@ -348,10 +342,9 @@ class WormLikeCurve:
                 color = "green"
             elif self.atom_types[i] == 4:
                 color = "red"
-            circle_end = mpatches.Circle(self.positions[i],
-                                         END_SIZE / 2,
-                                         color=color,
-                                         **kwargs)
+            circle_end = mpatches.Circle(
+                self.positions[i], END_SIZE / 2, color=color, **kwargs
+            )
             ax.add_artist(circle_end)
 
         if fit_edges:
@@ -362,8 +355,7 @@ class WormLikeCurve:
             ax.set_xlim(min_corner, max_corner)
             ax.set_ylim(min_corner, max_corner)
 
-    def to_lammps(self,
-                  filename: str):
+    def to_lammps(self, filename: str):
         """
         Write out to a lammps file which can be read by a read_data command.
 
@@ -390,4 +382,3 @@ class WormLikeCurve:
         # cartesian representation.
         self.positions_to_vectors()
         return self
-

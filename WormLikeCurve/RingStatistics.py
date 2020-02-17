@@ -11,14 +11,14 @@ import matplotlib.pyplot as plt
 from collections import Counter
 import numpy as np
 
+
 class RingStatistics:
     """
     Class to analyse the rings from a networkx
     graph.
     """
-    def __init__(self,
-                 graph: nx.Graph,
-                 max_ring_size: int = 10):
+
+    def __init__(self, graph: nx.Graph, max_ring_size: int = 10):
         """
         Initialise the RingStatistics finder.
         :param graph: a networkx graph object
@@ -32,8 +32,7 @@ class RingStatistics:
 
         self.shortest_path_dict = None
 
-    def all_shortest_paths(self,
-                           recalculate: bool = False):
+    def all_shortest_paths(self, recalculate: bool = False):
         """
         Calculates the shortest path between all pairs, up to
         the path cutoff specified in the initialiser.
@@ -45,14 +44,11 @@ class RingStatistics:
         of shortest paths.
         """
         if self.shortest_path_dict is None or recalculate:
-            shortest_paths = nx.all_pairs_shortest_path(self.graph,
-                                                        self.path_cutoff)
+            shortest_paths = nx.all_pairs_shortest_path(self.graph, self.path_cutoff)
             self.shortest_path_dict = dict(shortest_paths)
         return self.shortest_path_dict
 
-    def find_prime_mid_nodes(self,
-                             source_node: int,
-                             ring_size: int):
+    def find_prime_mid_nodes(self, source_node: int, ring_size: int):
         """
         Finds all the 'prime mid nodes' around
         a given source node for rings of a specific size.
@@ -67,8 +63,10 @@ class RingStatistics:
         """
         # Remember this dict contains paths of nodes, not
         # lengths. Subtract one to get the length.
-        lengths = {key: len(value) - 1
-                   for key, value in self.shortest_path_dict[source_node].items()}
+        lengths = {
+            key: len(value) - 1
+            for key, value in self.shortest_path_dict[source_node].items()
+        }
         # Check which nodes are potentially halfway round a ring.
         interesting_nodes = []
         for node, length in lengths.items():
@@ -99,10 +97,7 @@ class RingStatistics:
                         interesting_nodes.remove(neighbor)
         return prime_mid_nodes
 
-    def find_ring(self,
-                  source_node: int,
-                  mid_nodes,
-                  ring_size):
+    def find_ring(self, source_node: int, mid_nodes, ring_size):
         """
         Constructs the that includes a given source node
         and the prime mid node on the other side.
@@ -124,17 +119,15 @@ class RingStatistics:
             shortest_paths[0] = self.shortest_path_dict[source_node][mid_nodes[0]]
             shortest_paths[1] = self.shortest_path_dict[source_node][mid_nodes[1]]
         else:
-            shortest_paths = nx.all_shortest_paths(self.graph,
-                                                   source_node,
-                                                   mid_nodes[0])
+            shortest_paths = nx.all_shortest_paths(
+                self.graph, source_node, mid_nodes[0]
+            )
         # Now flatten this list, we'll rearrange it into a ring
         # shortly.
         proto_ring = [item for sublist in shortest_paths for item in sublist]
         return self.reassemble_ring(proto_ring, ring_size)
 
-    def reassemble_ring(self,
-                        proto_ring,
-                        ring_size):
+    def reassemble_ring(self, proto_ring, ring_size):
         """
         Turns a 'proto ring', i.e. a list of nodes that are
         in a ring, into a ring that we can follow which is
@@ -180,8 +173,7 @@ class RingStatistics:
             return tuple()
         return tuple(ring)
 
-    def is_primitive_ring(self,
-                          ring):
+    def is_primitive_ring(self, ring):
         """
         Calculates if a ring is primitive (i.e. cannot be broken
         up into smaller rings). Checks all opposite pairs
@@ -198,7 +190,7 @@ class RingStatistics:
         ring_size = len(ring)
         midway = ring_size // 2
         for i in range(midway):
-            shortest_path = self.shortest_path_dict[ring[i]][ring[i+midway]]
+            shortest_path = self.shortest_path_dict[ring[i]][ring[i + midway]]
             if len(shortest_path) - 1 < midway:
                 return False
         return True
@@ -265,7 +257,7 @@ def assemble_ring_graph(rings):
             edge = ring[edge_idx]
             other_edge = ring[other_edge_idx]
             edge_pairs.append([edge, other_edge])
-        for j, other_ring in enumerate(ring_list[i+1:], i+1):
+        for j, other_ring in enumerate(ring_list[i + 1 :], i + 1):
             # We know that edge and other_edge are connected
             # because they're in a ring. The shortest path in
             # any given ring must be via this edge. If both
@@ -277,19 +269,19 @@ def assemble_ring_graph(rings):
                     break
     return graph
 
+
 def identify_degenerate_rings(graph, rings):
     """
     Checks for degenerate rings, which are
     those that are composed of smaller rings.
-    
+
     """
-    node_coordinations = [len(list(graph.neighbors(node)))
-                          for node in graph.nodes]
-    
+    node_coordinations = [len(list(graph.neighbors(node))) for node in graph.nodes]
+
     ring_visit_count = Counter()
     for ring in rings:
         ring_visit_count.update(ring)
-    
+
     good_rings = set()
     for ring in rings:
         for node in ring:
@@ -324,13 +316,13 @@ if __name__ == "__main__":
     ring_graph = assemble_ring_graph(DAVID_RINGS)
     DAVID_RINGS_SORTED = sorted(list(DAVID_RINGS))
     RING_CENTROIDS = {}
-    
+
     for I, RING in enumerate(DAVID_RINGS_SORTED):
         POSITIONS = np.empty([len(RING), 2])
         for J, NODE in enumerate(RING):
             POSITIONS[J, :] = COORDINATES[NODE]
         RING_CENTROIDS[I] = np.mean(POSITIONS, axis=0)
-    
+
     FIG, AX = plt.subplots()
     nx.draw(ring_graph, with_labels=True, pos=RING_CENTROIDS)
     GOOD_RINGS = identify_degenerate_rings(G, RINGS)

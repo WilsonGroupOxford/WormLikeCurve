@@ -9,6 +9,7 @@ Created on Wed Oct 30 14:48:26 2019
 from collections import defaultdict
 import numpy as np
 
+
 def parse_molecule_topology(filename: str):
     """
     Extracts atom, molecule and position information
@@ -50,15 +51,17 @@ def parse_molecule_topology(filename: str):
                 except ValueError:
                     if line == "\n":
                         continue
-                    print("Could not read line:", line,
-                          "expected form: atom_id, molec_id, type, x, y, z")
+                    print(
+                        "Could not read line:",
+                        line,
+                        "expected form: atom_id, molec_id, type, x, y, z",
+                    )
                     continue
                 atom_id = int(atom_id)
                 molec_id = int(molec_id)
                 atom_type = int(atom_type)
                 x, y, z = float(x), float(y), float(z)
-                atoms[atom_id] = {"type": atom_type,
-                                  "pos":np.array([x, y, z])}
+                atoms[atom_id] = {"type": atom_type, "pos": np.array([x, y, z])}
                 molecules[molec_id].append(atom_id)
             if bonds_mode:
                 try:
@@ -66,8 +69,11 @@ def parse_molecule_topology(filename: str):
                 except ValueError:
                     if line == "\n":
                         continue
-                    print("Could not read bond line:", line,
-                          "Expected form: bond_id, bond_type, a, b")
+                    print(
+                        "Could not read bond line:",
+                        line,
+                        "Expected form: bond_id, bond_type, a, b",
+                    )
                     continue
                 bonds.append([int(atom_a), int(atom_b)])
     return atoms, molecules, bonds

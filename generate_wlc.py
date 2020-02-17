@@ -35,28 +35,27 @@ if __name__ == "__main__":
     SPACING = 7
     for i in range(2):
         for j in range(2):
-            start_pos= np.array([-SPACING * i,  -SPACING * j])
+            start_pos = np.array([-SPACING * i, -SPACING * j])
             # Iterate until we generate a positive size.
             size = -1
             while size < MIN_SIZE:
                 size = int(np.random.normal(loc=MEAN_LENGTH, scale=STD_LENGTH))
                 print(f"({i},{j}): {size}")
-            POLYMER_COLLECTION.append(WormLikeCurve(size,
-                                                    HarmonicBond(k=1.0,
-                                                                 length=1.0),
-                                                    AngleBond(k=100.0,
-                                                              angle=np.pi),
-                                                    start_pos=start_pos
-                                                    )
-                                     )
+            POLYMER_COLLECTION.append(
+                WormLikeCurve(
+                    size,
+                    HarmonicBond(k=1.0, length=1.0),
+                    AngleBond(k=100.0, angle=np.pi),
+                    start_pos=start_pos,
+                )
+            )
             POLYMER_COLLECTION[-1].add_sticky_sites(sticky_fraction)
     FIG, AX = plt.subplots()
-    AX.axis('equal')
-    
+    AX.axis("equal")
+
     for POLYMER in POLYMER_COLLECTION:
-        POLYMER.rotate(np.random.uniform(0, 2*np.pi))    
-                                         
-    
+        POLYMER.rotate(np.random.uniform(0, 2 * np.pi))
+
     POLYMER_COLLECTION.plot_onto(AX)
     POLYMER_COLLECTION.to_lammps("polymer_total.data")
     plt.show()

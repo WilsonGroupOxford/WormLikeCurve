@@ -8,6 +8,7 @@ Created on Tue Sep 24 14:31:07 2019
 
 import numpy as np
 
+
 def boltzmann_distrib(energy: float, kbt: float) -> float:
     """
     Evaluates the probability of a particular energy occuring

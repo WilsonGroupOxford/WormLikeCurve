@@ -7,6 +7,7 @@ Created on Tue Sep 24 16:26:42 2019
 """
 import numpy as np
 
+
 class CurveCollection:
     """
     Helper class to operate on multiple curve objects,
@@ -22,7 +23,6 @@ class CurveCollection:
         except TypeError:
             curves = [curves]
         self.curves = curves
-
 
     def __iter__(self):
         yield from self.curves
@@ -114,8 +114,7 @@ class CurveCollection:
 
     @property
     def positions(self):
-        return np.concatenate([curve.positions for curve in self.curves],
-                              axis=0)
+        return np.concatenate([curve.positions for curve in self.curves], axis=0)
 
     def append(self, curve):
         """
@@ -124,10 +123,9 @@ class CurveCollection:
         """
         self.curves.append(curve)
 
-    def plot_onto(self,
-                  ax,
-                  kwarg_list=None,
-                  fit_edges: bool = True,):
+    def plot_onto(
+        self, ax, kwarg_list=None, fit_edges: bool = True,
+    ):
         """
         Plots these polymers as a collection of lines, detailed by kwargs
         into the provided axis.
@@ -143,15 +141,12 @@ class CurveCollection:
         if length_difference > 0:
             kwarg_list.extend([{} for _ in range(length_difference)])
         elif length_difference < 0:
-            print("More kwargs provided than there are curves." +
-                  "Ignoring excess")
+            print("More kwargs provided than there are curves." + "Ignoring excess")
 
         for i, curve in enumerate(self.curves):
             # Don't pass on edge fitting because we'll
             # do it here.
-            curve.plot_onto(ax,
-                            fit_edges=False,
-                            **kwarg_list[i])
+            curve.plot_onto(ax, fit_edges=False, **kwarg_list[i])
 
         if fit_edges:
             min_x, min_y = np.min(self.positions, axis=0)
@@ -161,9 +156,7 @@ class CurveCollection:
             ax.set_xlim(min_corner, max_corner)
             ax.set_ylim(min_corner, max_corner)
 
-    def to_lammps(self,
-                  filename: str,
-                  periodic_box=None):
+    def to_lammps(self, filename: str, periodic_box=None):
         with open(filename, "w") as fi:
             # Header section
             fi.write("Polymer file\n\n")
@@ -189,8 +182,12 @@ class CurveCollection:
                 fi.write(f"\t {min_corner:.3f} {max_corner:.3f} \t ylo yhi\n")
                 fi.write(f"\t -1.0 1.0 \t zlo zhi\n\n")
             else:
-                fi.write(f"\t {periodic_box[0,0]:.3f} {periodic_box[0,1]:.3f} \t xlo xhi\n")
-                fi.write(f"\t {periodic_box[1,0]:.3f} {periodic_box[1,1]:.3f} \t ylo yhi\n")
+                fi.write(
+                    f"\t {periodic_box[0,0]:.3f} {periodic_box[0,1]:.3f} \t xlo xhi\n"
+                )
+                fi.write(
+                    f"\t {periodic_box[1,0]:.3f} {periodic_box[1,1]:.3f} \t ylo yhi\n"
+                )
                 fi.write(f"\t -1.0 1.0 \t zlo zhi\n\n")
             # Masses
             fi.write("Masses\n\n")
@@ -207,8 +204,10 @@ class CurveCollection:
                     # format:
                     # atom_id molecule_id atom_type x y z
                     atom_type = curve.atom_types[i]
-                    fi.write(f"\t {atom_id} \t {molecule_id} \t {atom_type}" +
-                             f"\t {atom[0]:.3f} \t {atom[1]:.3f} \t 0.000\n")
+                    fi.write(
+                        f"\t {atom_id} \t {molecule_id} \t {atom_type}"
+                        + f"\t {atom[0]:.3f} \t {atom[1]:.3f} \t 0.000\n"
+                    )
             fi.write("\n")
 
             # Bonds
@@ -237,8 +236,10 @@ class CurveCollection:
                 for _ in range(curve.num_angles):
                     atom_id += 1
                     angle_id += 1
-                    fi.write(f"\t {angle_id} \t 1 \t {atom_id}" +
-                             f"\t {atom_id + 1} \t {atom_id + 2}\n")
+                    fi.write(
+                        f"\t {angle_id} \t 1 \t {atom_id}"
+                        + f"\t {atom_id + 1} \t {atom_id + 2}\n"
+                    )
                 # Skip head 2 to the central atom of the next angle
                 atom_id += 2
             fi.write("\n")
