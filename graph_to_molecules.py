@@ -15,87 +15,16 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
+from morley_parser import (
+    COLOUR_LUT,
+    CORRESPONDING_COLOURS,
+    colour_graph,
+    draw_periodic_coloured,
+    load_morley,
+)
 from WormLikeCurve.Bonds import AngleBond, HarmonicBond
 from WormLikeCurve.CurveCollection import CurveCollection
 from WormLikeCurve.WormLikeCurve import WormLikeCurve
-
-UNKNOWN_COLOUR = (2, 3)
-COLOUR_TO_TYPE = defaultdict(lambda: UNKNOWN_COLOUR)
-COLOUR_TO_TYPE[0] = (2,)
-COLOUR_TO_TYPE[0] = (3,)
-CORRESPONDING_COLOURS = {2: 3, 3: 2, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8}
-COLOUR_LUT = {
-    2: "blue",
-    3: "green",
-    4: "orange",
-    5: "red",
-    6: "purple",
-    7: "pink",
-    8: "brown",
-}
-
-
-def load_morley(prefix: str):
-
-    coords_file = prefix + "_crds.dat"
-    network_file = prefix + "_net.dat"
-    aux_file = prefix + "_aux.dat"
-
-    graph = nx.Graph()
-    pos_dict = dict()
-    with open(coords_file) as fi:
-        for i, line in enumerate(fi.readlines()):
-            coords = [float(item) for item in line.split()]
-            pos_dict[i] = np.array(coords)
-
-    with open(network_file) as fi:
-        for u, line in enumerate(fi.readlines()):
-            connections = [int(item) for item in line.split()]
-            for v in connections:
-                graph.add_edge(u, v)
-
-    with open(aux_file) as fi:
-        num_atoms = int(fi.readline())
-        _, _ = [int(item) for item in fi.readline().split()]
-        geometry_code = fi.readline().strip()
-        box_max_x, box_max_y = [float(item) for item in fi.readline().split()]
-        inv_box_max_x, inv_box_max_y = [float(item) for item in fi.readline().split()]
-
-        if not np.isclose(box_max_x, 1.0 / inv_box_max_x):
-            raise RuntimeError(
-                "Inverse periodic box side does not match periodic box size."
-            )
-
-        if not np.isclose(box_max_y, 1.0 / inv_box_max_y):
-            raise RuntimeError(
-                "Inverse periodic box side does not match periodic box size."
-            )
-        periodic_box = np.array([[0.0, box_max_x], [0.0, box_max_y]], dtype=float)
-
-    graph = colour_graph(graph)
-    return pos_dict, graph, periodic_box
-
-
-def colour_graph(graph: nx.Graph, colour_to_type: Dict = COLOUR_TO_TYPE):
-    """
-    Assign a type to each node of a graph.
-
-    Proceeds recursively, assigning a type to each node on a graph.
-    Then, assigns the corresponding type according to the type dictionary.
-    In the case of odd rings, this can't be done, so we instead assign
-    a set of types to that node.
-
-    :param graph: the graph to colour
-    :param corresponding_types: a dictionary with a set of types in it,
-    each of which corresponds to one other.
-    """
-    colours = nx.algorithms.coloring.greedy_color(
-        graph, strategy="smallest_last", interchange=True
-    )
-    for key, value in colours.items():
-        colours[key] = colour_to_type.get(value, UNKNOWN_COLOUR)
-    nx.set_node_attributes(graph, colours, "color")
-    return graph
 
 
 def calculate_edge_factor(angle: float) -> float:
@@ -340,12 +269,6 @@ def construct_hex_lattice(num_nodes: int, bond_length: float = 1.0) -> CurveColl
     return curves, periodic_box
 
 
-def write_out_morley(graph: nx.Graph, periodic_box: np.array, filename: str):
-    """
-    Write out into a netmc readable file
-    """
-
-
 def construct_alt_sq_lattice(
     num_squares: int, bond_length: float = 1.0
 ) -> CurveCollection:
@@ -398,81 +321,6 @@ def construct_alt_sq_lattice(
         pos[key] *= scale_factor
     periodic_box *= scale_factor
     return curves, periodic_box
-
-
-def draw_periodic_coloured(graph, pos, periodic_box, ax=None):
-    if ax is None:
-        _, ax = plt.subplots()
-    EDGE_LIST = []
-    periodic_edge_list = []
-    for u, v in graph.edges():
-        distance = np.abs(pos[v] - pos[u])
-        if (
-            distance[0] < periodic_box[0, 1] / 2
-            and distance[1] < periodic_box[1, 1] / 2
-        ):
-            EDGE_LIST.append((u, v))
-        else:
-            periodic_edge_list.append((u, v))
-    NODES_IN_EDGE_LIST = set([item for edge_pair in EDGE_LIST for item in edge_pair])
-    NODES_IN_EDGE_LIST = list(NODES_IN_EDGE_LIST)
-
-    periodic_nodes = set(
-        [item for edge_pair in periodic_edge_list for item in edge_pair]
-    )
-    periodic_nodes = list(periodic_nodes)
-
-    node_colours = {
-        node_id: COLOUR_LUT[colour[0]] for node_id, colour in graph.nodes(data="color")
-    }
-    nx.draw(
-        graph,
-        pos=pos,
-        ax=ax,
-        node_size=10,
-        node_color=[node_colours[node_id] for node_id in NODES_IN_EDGE_LIST],
-        edgelist=EDGE_LIST,
-        nodelist=NODES_IN_EDGE_LIST,
-        font_size=8,
-        edgecolors="black",
-        linewidths=0.5,
-    )
-
-    for u, v in periodic_edge_list:
-        new_pos = {key: value for key, value in pos.items()}
-        gradient = pos[v] - pos[u]
-        # If we're in a periodic box, we have to apply the
-        # minimum image convention. Do this by creating
-        # a virtual position for v, which is a box length away.
-        minimum_image_x = (periodic_box[0, 1] - periodic_box[0, 0]) / 2
-        minimum_image_y = (periodic_box[1, 1] - periodic_box[1, 0]) / 2
-
-        # We need the += and -= to cope with cases where we're out in
-        # both x and y.
-        new_pos_v = pos[v]
-        if gradient[0] > minimum_image_x:
-            new_pos_v -= np.array([2 * minimum_image_x, 0.0])
-        elif gradient[0] < -minimum_image_x:
-            new_pos_v += np.array([2 * minimum_image_x, 0.0])
-
-        if gradient[1] > minimum_image_y:
-            new_pos_v -= np.array([0, 2 * minimum_image_y])
-        elif gradient[1] < -minimum_image_y:
-            new_pos_v += np.array([0, 2 * minimum_image_y])
-        new_pos[v] = new_pos_v
-        nx.draw(
-            graph,
-            pos=new_pos,
-            ax=ax,
-            node_size=10,
-            node_color=[node_colours[node_id] for node_id in (u, v)],
-            edgelist=[(u, v)],
-            nodelist=[u, v],
-            style="dashed",
-            edgecolors="black",
-            linewidths=0.5,
-        )
-    return ax
 
 
 if __name__ == "__main__":
