@@ -12,6 +12,19 @@ import numpy as np
 import scipy.spatial.distance
 
 
+def apply_minimum_image_convention(vector, x_mic, y_mic):
+    if vector[0] < -x_mic:
+        vector[0] += x_mic * 2
+    elif vector[0] > x_mic:
+        vector[0] -= x_mic * 2
+
+    if vector[1] < -y_mic:
+        vector[1] += y_mic * 2
+    elif vector[1] > y_mic:
+        vector[1] -= y_mic * 2
+    return vector
+
+
 def find_lj_pairs(positions, ids, cutoff: float, cell=None):
     """
     Find a set of mini-clusters based around each atom. A mini
@@ -36,67 +49,20 @@ def find_lj_pairs(positions, ids, cutoff: float, cell=None):
 
         x_mic = np.abs(cell[0, 1] - cell[0, 0]) / 2
         y_mic = np.abs(cell[1, 1] - cell[1, 0]) / 2
-        z_mic = np.abs(cell[2, 1] - cell[2, 0]) / 2
 
         # Precalculate some cell offsets to save time.
-        offsets = [
-            (x, y, z) for x in range(-1, 2) for y in range(-1, 2) for z in range(-1, 2)
-        ]
-        offsets.remove((0, 0, 0))
-        offsets = [np.array(offset) for offset in offsets]
-        cell_offsets = [
-            offset * np.array([x_mic * 2, y_mic * 2, z_mic * 2]) for offset in offsets
-        ]
-        sq_cell_offsets = [
-            np.dot(cell_offset, cell_offset) for cell_offset in cell_offsets
-        ]
         min_mic = min([x_mic, y_mic])
         outside_mic = np.argwhere(distances > min_mic)
-
         for i, j in outside_mic:
             # Here are a few optimisations to make this routine a little faster.
             if i > j:
                 # Don't double count.
                 continue
-            # To pick up a minimum image, each particle must be within
-            # one radial cutoff of the edge.
-            # if np.all(np.abs(positions[i, :] - cell[:, 0]) > cutoff):
-            #    if np.all(np.abs(positions[i, :] - cell[:, 1]) > cutoff):
-            #        continue
-            # if np.all(np.abs(positions[j, :] - cell[:, 0]) > cutoff):
-            #    if np.all(np.abs(positions[j, :] - cell[:, 1]) > cutoff):
-            #        continue
 
             vector = positions[i, :] - positions[j, :]
-            if vector[0] < -x_mic:
-                vector[0] += x_mic * 2
-            elif vector[0] > x_mic:
-                vector[0] -= x_mic * 2
-
-            if vector[1] < -y_mic:
-                vector[1] += y_mic * 2
-            elif vector[1] > y_mic:
-                vector[1] -= y_mic * 2
+            vector = apply_minimum_image_convention(vector, x_mic, y_mic)
 
             new_distance = np.hypot(vector[0], vector[1])
-            # distance = distances[i, j]
-            # sq_distance = distance ** 2
-            # new_distance = sq_distance
-
-            # for i_offset, offset in enumerate(offsets):
-            #    cell_offset = cell_offsets[i_offset]
-            #    this_distance = (
-            #        sq_distance
-            #        + sq_cell_offsets[i_offset]
-            #        - 2 * np.dot(vector, cell_offset)
-            #    )
-            #    if this_distance < new_distance:
-            #        new_distance = this_distance
-
-            # This one is within the cutoff, so let's just bail out.
-            # I don't care if it's the closest or not.
-            #    if new_distance < cutoff:
-            #        break
 
             distances[i, j] = new_distance
             distances[j, i] = new_distance

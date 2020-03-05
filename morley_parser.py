@@ -83,9 +83,16 @@ def draw_periodic_coloured(
         linewidths=0.5,
     )
 
+    node_colours_list = []
+    new_edge_list = []
+    new_node_list = []
+    new_pos = {key: value for key, value in pos.items()}
+    temporary_edges = []
+    # We often encounter an edge periodic in more than one
+    # way. Keep track, and give each one a virtual position.
+    encounters = defaultdict(lambda: 0)
     for u, v in periodic_edge_list:
-        new_pos = {key: value for key, value in pos.items()}
-        gradient = pos[v] - pos[u]
+        gradient = new_pos[v] - new_pos[u]
 
         # If we're in a periodic box, we have to apply the
         # minimum image convention. Do this by creating
@@ -96,7 +103,7 @@ def draw_periodic_coloured(
         # print(gradient, minimum_image_x, minimum_image_y)
         # We need the += and -= to cope with cases where we're out in
         # both x and y.
-        new_pos_v = pos[v]
+        new_pos_v = np.array([item for item in new_pos[v]])
         if gradient[0] > minimum_image_x:
             new_pos_v -= np.array([2 * minimum_image_x, 0.0])
         elif gradient[0] < -minimum_image_x:
@@ -106,19 +113,32 @@ def draw_periodic_coloured(
             new_pos_v -= np.array([0, 2 * minimum_image_y])
         elif gradient[1] < -minimum_image_y:
             new_pos_v += np.array([0, 2 * minimum_image_y])
-        new_pos[v] = new_pos_v
-        nx.draw(
-            graph,
-            pos=new_pos,
-            ax=ax,
-            node_size=10,
-            node_color=[node_colours[node_id] for node_id in (u, v)],
-            edgelist=[(u, v)],
-            nodelist=[u, v],
-            style="dashed",
-            edgecolors="black",
-            linewidths=0.5,
-        )
+
+        encounters[v] += 1
+        new_v = f"{v}_periodic_{encounters[v]}"
+        new_pos[new_v] = new_pos_v
+        node_colours[new_v] = node_colours[v]
+        node_colours_list.extend([node_colours[node_id] for node_id in (u, new_v)])
+        new_edge_list.append((u, new_v))
+        new_node_list.extend([u, new_v])
+        temporary_edges.append((u, new_v))
+
+    graph.add_edges_from(temporary_edges)
+
+    nx.draw(
+        graph,
+        pos=new_pos,
+        ax=ax,
+        node_size=10,
+        node_color=node_colours_list,
+        edgelist=new_edge_list,
+        nodelist=new_node_list,
+        style="dashed",
+        edgecolors="black",
+        linewidths=0.5,
+    )
+
+    graph.remove_edges_from(temporary_edges)
     return ax
 
 
