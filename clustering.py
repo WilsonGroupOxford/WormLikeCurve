@@ -60,35 +60,46 @@ def find_lj_pairs(positions, ids, cutoff: float, cell=None):
                 continue
             # To pick up a minimum image, each particle must be within
             # one radial cutoff of the edge.
-            if np.all(np.abs(positions[i, :] - cell[:, 0]) > cutoff):
-                if np.all(np.abs(positions[i, :] - cell[:, 1]) > cutoff):
-                    continue
-            if np.all(np.abs(positions[j, :] - cell[:, 0]) > cutoff):
-                if np.all(np.abs(positions[j, :] - cell[:, 1]) > cutoff):
-                    continue
+            # if np.all(np.abs(positions[i, :] - cell[:, 0]) > cutoff):
+            #    if np.all(np.abs(positions[i, :] - cell[:, 1]) > cutoff):
+            #        continue
+            # if np.all(np.abs(positions[j, :] - cell[:, 0]) > cutoff):
+            #    if np.all(np.abs(positions[j, :] - cell[:, 1]) > cutoff):
+            #        continue
 
             vector = positions[i, :] - positions[j, :]
-            distance = distances[i, j]
-            sq_distance = distance ** 2
-            new_distance = sq_distance
+            if vector[0] < -x_mic:
+                vector[0] += x_mic * 2
+            elif vector[0] > x_mic:
+                vector[0] -= x_mic * 2
 
-            for i_offset, offset in enumerate(offsets):
-                cell_offset = cell_offsets[i_offset]
-                this_distance = (
-                    sq_distance
-                    + sq_cell_offsets[i_offset]
-                    - 2 * np.dot(vector, cell_offset)
-                )
-                if this_distance < new_distance:
-                    new_distance = this_distance
+            if vector[1] < -y_mic:
+                vector[1] += y_mic * 2
+            elif vector[1] > y_mic:
+                vector[1] -= y_mic * 2
 
-                # This one is within the cutoff, so let's just bail out.
-                # I don't care if it's the closest or not.
-                if new_distance < cutoff:
-                    break
+            new_distance = np.hypot(vector[0], vector[1])
+            # distance = distances[i, j]
+            # sq_distance = distance ** 2
+            # new_distance = sq_distance
 
-            distances[i, j] = np.sqrt(new_distance)
-            distances[j, i] = np.sqrt(new_distance)
+            # for i_offset, offset in enumerate(offsets):
+            #    cell_offset = cell_offsets[i_offset]
+            #    this_distance = (
+            #        sq_distance
+            #        + sq_cell_offsets[i_offset]
+            #        - 2 * np.dot(vector, cell_offset)
+            #    )
+            #    if this_distance < new_distance:
+            #        new_distance = this_distance
+
+            # This one is within the cutoff, so let's just bail out.
+            # I don't care if it's the closest or not.
+            #    if new_distance < cutoff:
+            #        break
+
+            distances[i, j] = new_distance
+            distances[j, i] = new_distance
     within_cutoff = np.argwhere(distances < cutoff)
 
     # Construct a dictionary that holds which pairs

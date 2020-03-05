@@ -15,10 +15,12 @@ import numpy as np
 
 from rings import PeriodicRingFinder
 
+import sys
+
 UNKNOWN_COLOUR = (2, 3)
 COLOUR_TO_TYPE = defaultdict(lambda: UNKNOWN_COLOUR)
 COLOUR_TO_TYPE[0] = (2,)
-COLOUR_TO_TYPE[0] = (3,)
+COLOUR_TO_TYPE[1] = (3,)
 CORRESPONDING_COLOURS = {2: 3, 3: 2, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8}
 COLOUR_LUT = {
     2: "blue",
@@ -65,7 +67,8 @@ def draw_periodic_coloured(
     periodic_nodes = list(periodic_nodes)
 
     node_colours = {
-        node_id: COLOUR_LUT[colour[0]] for node_id, colour in graph.nodes(data="color")
+        node_id: (COLOUR_LUT[colour[0]] if colour is not None else "blue")
+        for node_id, colour in graph.nodes(data="color")
     }
     nx.draw(
         graph,
@@ -83,12 +86,14 @@ def draw_periodic_coloured(
     for u, v in periodic_edge_list:
         new_pos = {key: value for key, value in pos.items()}
         gradient = pos[v] - pos[u]
+
         # If we're in a periodic box, we have to apply the
         # minimum image convention. Do this by creating
         # a virtual position for v, which is a box length away.
         minimum_image_x = (periodic_box[0, 1] - periodic_box[0, 0]) / 2
         minimum_image_y = (periodic_box[1, 1] - periodic_box[1, 0]) / 2
-
+        # print(pos[v], pos[u])
+        # print(gradient, minimum_image_x, minimum_image_y)
         # We need the += and -= to cope with cases where we're out in
         # both x and y.
         new_pos_v = pos[v]
@@ -193,6 +198,11 @@ def load_morley(prefix: str):
 def construct_morley_dual(graph: nx.Graph, pos, periodic_box):
     print("Pos  has", len(pos), "items at the start.")
     ring_finder = PeriodicRingFinder(graph, pos, periodic_box[:, 1])
+    FIG, AX = plt.subplots()
+    ring_finder.draw_onto(AX)
+    AX.axis("off")
+
+    FIG.savefig("found-rings.pdf")
     print("Pos  has", len(pos), "items at the end.")
 
     num_nodes = len(graph)
@@ -275,7 +285,11 @@ def write_out_morley(graph: nx.Graph, pos, periodic_box: np.array, prefix: str):
 
 
 if __name__ == "__main__":
-    HEX_POS, HEX_GRAPH, HEX_BOX = load_morley("./Data/hexagon_network_A")
+    if len(sys.argv) == 2:
+        MORLEY_PREFIX = sys.argv[1]
+    else:
+        MORLEY_PREFIX = "./Data/hexagon_network_A"
+    HEX_POS, HEX_GRAPH, HEX_BOX = load_morley(MORLEY_PREFIX)
     print("HEX_POS has", len(HEX_POS), "items at the start.")
     DUAL_CNXS = construct_morley_dual(HEX_GRAPH, pos=HEX_POS, periodic_box=HEX_BOX)
     nx.set_node_attributes(HEX_GRAPH, DUAL_CNXS, name="dual_connections")
