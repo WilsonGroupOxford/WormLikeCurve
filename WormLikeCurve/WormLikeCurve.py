@@ -8,6 +8,7 @@ Created on Tue Sep 24 14:29:00 2019
 
 import matplotlib.patches as mpatches
 import numpy as np
+import copy
 from matplotlib.collections import LineCollection
 
 from WormLikeCurve.Bonds import AngleBond, HarmonicBond
@@ -69,7 +70,7 @@ class WormLikeCurve:
         # when they're necessary.
         self._positions_dirty = True
         self._positions = None
-        self.recentre()
+        self._offset = np.zeros([2], dtype=float)
 
     @property
     def positions(self) -> np.array:
@@ -102,18 +103,13 @@ class WormLikeCurve:
         """Return the location of the centre of mass of this curve."""
         # If we haven't calculated the positions, this is a bit hard.
         # Do it manually.
-        x_step, y_step = 0.0, 0.0
-        for length, angle in self.vectors:
-            x_step += length * np.cos(angle)
-            y_step += length * np.sin(angle)
-        x_step /= self.num_segments
-        y_step /= self.num_segments
-        return self.start_pos + np.array([x_step, y_step])
+        return np.mean(self.positions, axis=0)
 
     def recentre(self):
         """Recentre the polymer so that its centre of mass is at start_pos."""
+        self._offset = self.start_pos - self.centroid
         self._positions_dirty = True
-        self.start_pos = self.centroid
+        
 
     def rotate(self, angle: float):
         """
@@ -140,6 +136,7 @@ class WormLikeCurve:
         self.vectors[:, 0] *= scale_factor
         # Move the origin, and regenerate.
         self.start_pos *= scale_factor
+        self._offset *= scale_factor
         self._positions_dirty = True
 
     def translate(self, translation: np.array):
@@ -299,7 +296,7 @@ class WormLikeCurve:
     def vectors_to_positions(self):
         """Convert the [r, theta] vectors into Cartesian coordinates."""
         positions = np.empty([self.num_segments + 1, 2])
-        positions[0, :] = self.start_pos
+        positions[0, :] = self.start_pos + self._offset
         for i in range(self.num_segments):
             length, angle = self.vectors[i]
             vector = np.array([length * np.cos(angle), length * np.sin(angle)])
