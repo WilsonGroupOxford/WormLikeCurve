@@ -95,21 +95,21 @@ class CurveCollection:
     def num_atoms(self):
         num_atoms = 0
         for curve in self.curves:
-            num_atoms += curve.num_atoms
+            num_atoms += curve.positions.shape[0]
         return num_atoms
 
     @property
     def num_bonds(self):
         num_bonds = 0
         for curve in self.curves:
-            num_bonds += curve.num_bonds
+            num_bonds += len(curve.bonds)
         return num_bonds
 
     @property
     def num_angles(self):
         num_angles = 0
         for curve in self.curves:
-            num_angles += curve.num_angles
+            num_angles += len(curve.angles)
         return num_angles
 
     @property
@@ -155,8 +155,14 @@ class CurveCollection:
             max_corner = (max(max_x, max_y) * 1.1) + 0.1
             ax.set_xlim(min_corner, max_corner)
             ax.set_ylim(min_corner, max_corner)
+            
+    def box_to_origin(self):
+        min_x, min_y = np.min(self.positions, axis=0)
+        self.translate(-np.array([min_x, min_y], dtype=float))
 
-    def to_lammps(self, filename: str, periodic_box=None):
+    def to_lammps(self, filename: str, periodic_box=None, mass=14.02):
+        # Make the bottom left corner the origin
+        self.box_to_origin()
         with open(filename, "w") as fi:
             # Header section
             fi.write("Polymer file\n\n")
@@ -170,17 +176,22 @@ class CurveCollection:
             num_atom_types = len(atom_types)
             fi.write(f"\t {num_atom_types} \t atom types\n")
             fi.write("\t 1 \t bond types\n")
-            fi.write("\t 1 \t angle types\n\n")
+            angle_types = set()
+            for curve in self.curves:
+                angle_types.update([angle[0] for angle in curve.angles])
+            
+            fi.write("\t " + f"{len(angle_types)}" + " \t angle types\n\n")
 
             if periodic_box is None:
                 min_x, min_y = np.min(self.positions, axis=0)
                 max_x, max_y = np.max(self.positions, axis=0)
-                min_corner = (min(min_x, min_y) * 1.1) - 0.1
+                min_corner = 0.0
                 max_corner = (max(max_x, max_y) * 1.1) + 0.1
 
                 fi.write(f"\t {min_corner:.3f} {max_corner:.3f} \t xlo xhi\n")
                 fi.write(f"\t {min_corner:.3f} {max_corner:.3f} \t ylo yhi\n")
-                fi.write(f"\t -1.0 1.0 \t zlo zhi\n\n")
+                #
+                fi.write(f"\t -{max_corner / 2} {max_corner / 2} \t zlo zhi\n\n")
             else:
                 fi.write(
                     f"\t {periodic_box[0,0]:.3f} {periodic_box[0,1]:.3f} \t xlo xhi\n"
@@ -192,7 +203,7 @@ class CurveCollection:
             # Masses
             fi.write("Masses\n\n")
             for atom_type in atom_types:
-                fi.write(f"\t {atom_type} \t 14.02\n")
+                fi.write(f"\t {atom_type} \t {mass}\n")
             fi.write("\n")
 
             # Atom positions
@@ -233,12 +244,12 @@ class CurveCollection:
             atom_id = 0
             angle_id = 0
             for curve in self.curves:
-                for _ in range(curve.num_angles):
-                    atom_id += 1
+                for angle in curve.angles:
                     angle_id += 1
+                    # remember to fix a stupid lammps off-by-one
                     fi.write(
-                        f"\t {angle_id} \t 1 \t {atom_id}"
-                        + f"\t {atom_id + 1} \t {atom_id + 2}\n"
+                        f"\t {angle_id} \t {angle[0]} \t {angle[1]+1}"
+                        + f"\t {angle[2]+1} \t {angle[3]+1}\n"
                     )
                 # Skip head 2 to the central atom of the next angle
                 atom_id += 2

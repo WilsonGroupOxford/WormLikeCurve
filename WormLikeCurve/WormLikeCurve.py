@@ -6,15 +6,24 @@ Created on Tue Sep 24 14:29:00 2019
 @author: matthew-bailey
 """
 
-import matplotlib.patches as mpatches
+
 import numpy as np
 import copy
+import networkx as nx
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from matplotlib.collections import LineCollection
+import matplotlib.patheffects as path_effects
 
-from WormLikeCurve.Bonds import AngleBond, HarmonicBond
-from WormLikeCurve.CurveCollection import CurveCollection
-from WormLikeCurve.Helpers import boltzmann_distrib
-
+try:
+    from WormLikeCurve.Bonds import AngleBond, HarmonicBond
+    from WormLikeCurve.CurveCollection import CurveCollection
+    from WormLikeCurve.Helpers import boltzmann_distrib
+except ModuleNotFoundError:
+    from Bonds import AngleBond, HarmonicBond
+    from CurveCollection import CurveCollection
+    from Helpers import boltzmann_distrib
 
 class WormLikeCurve:
     """
@@ -52,8 +61,9 @@ class WormLikeCurve:
         self.angle_bond = angle_bond
         self.kbt = kbt
         self.vectors = np.empty([num_segments, 2])
-        self.start_pos = start_pos
+        self.start_pos = start_pos.astype(float)
         self.bonds = []
+        self.angles = []
         for i in range(num_segments):
             length = self.generate_length()
             angle = self.generate_angle(
@@ -62,7 +72,7 @@ class WormLikeCurve:
             self.bonds.append((i, i + 1))
             self.vectors[i, :] = length, angle
 
-        # Assign atom types -- the
+        # Assign atom types
         self.atom_types = np.ones([self.num_atoms], dtype=int)
         self.atom_types[0] = 2
         self.atom_types[-1] = 3
@@ -71,6 +81,83 @@ class WormLikeCurve:
         self._positions_dirty = True
         self._positions = None
         self._offset = np.zeros([2], dtype=float)
+        
+        atom_id = 0
+        for _ in range(self.num_angles):
+            atom_id += 1
+            self.angles.append((1, atom_id, atom_id + 1, atom_id + 2))
+
+    def _graph_to_vectors(self, graph: nx.Graph):
+        try:
+            nx.find_cycle(graph)
+            raise RuntimeError("Cannot turn a graph with cycles into a molecule")
+        except nx.NetworkXNoCycle:
+            # This is the desired state of affairs but networkx
+            # is fussy, so just ignore and continue
+            pass
+        
+        if not nx.is_connected(graph):
+            raise RuntimeError("Graph must be connected to form one molecule")
+        # Start from the smallest numbered singly-coordinate node
+        single_nodes = [node for node, degree in graph.degree if degree == 1]
+        start_node = min(single_nodes)
+        
+        # Set up the bonds and atom types
+        self.bonds = [(None, None) for _ in range(len(graph.edges()))]
+        self.vectors = np.empty([len(graph.edges()), 2], dtype=float)
+        self.atom_types = np.ones([len(graph)], dtype=int)
+        atom_types_counter = {2: 0, 3: 0}
+        for single_node in single_nodes:
+            min_atom_type = min(atom_types_counter, key=atom_types_counter.get)
+            self.atom_types[single_node] = min_atom_type
+            atom_types_counter[min_atom_type] += 1
+        open_nodes = set([start_node])
+        satisfied_nodes = set()
+        self.angles = []
+        bonds_counter = 0
+        while open_nodes:
+            this_node = open_nodes.pop()
+            node_neighbours = sorted(list(nx.neighbors(graph, this_node)))      
+            num_neighbours = max(len(node_neighbours), 2)
+            actual_neighbours = 1
+            for neighbour in node_neighbours:
+                if neighbour in satisfied_nodes:
+                    continue
+                self.bonds[bonds_counter] = (this_node, neighbour)
+                length = self.generate_length()
+                angle = (2 * actual_neighbours * np.pi / num_neighbours) - np.pi
+                # We now need to keep track of the cumulative angle up
+                # until this point.
+                shortest_path = nx.shortest_path(graph, start_node, neighbour)
+                path_to_edges = [(shortest_path[i], shortest_path[i+1]) for i in range(len(shortest_path) - 1)]
+                edge_indices = [self.bonds.index(edge) for edge in path_to_edges]
+                if len(edge_indices) >= 2:
+                    last_edge = edge_indices[-2]
+                    last_angle = self.vectors[last_edge, 1]
+                    # Calculate the true angle between the neighbours
+                    vec_1 = self.positions[self.bonds[last_edge][1]] - self.positions[self.bonds[last_edge][0]]
+                    vec_2 = self.positions[neighbour] - self.positions[self.bonds[last_edge][1]]      
+                    vec_1 /= np.linalg.norm(vec_1)
+                    vec_2 /= np.linalg.norm(vec_2)
+                    # TODO: add the factor of pi only if y change is negative
+                    angle_between = np.pi - np.arccos(np.clip(np.dot(vec_1, vec_2), -1.0, 1.0))
+                    if angle_between > 1e-10:
+                        angle_type = int(np.round(2 * np.pi / angle_between)) - 1
+                    else:
+                        angle_type = 1
+                    print(vec_1, vec_2, angle_between)
+                    self.angles.append(([angle_type, *self.bonds[last_edge], neighbour]))
+                else:
+                    last_angle = 0.0
+                self.vectors[bonds_counter, :] = length, angle + last_angle
+                actual_neighbours += 1
+                bonds_counter += 1
+            open_nodes.update(node_neighbours)
+            open_nodes = open_nodes.difference(satisfied_nodes)
+            satisfied_nodes.add(this_node)
+        self._positions_dirty = True
+        self._positions = None
+        print(self.angles)
 
     @property
     def positions(self) -> np.array:
@@ -109,7 +196,6 @@ class WormLikeCurve:
         """Recentre the polymer so that its centre of mass is at start_pos."""
         self._offset = self.start_pos - self.centroid
         self._positions_dirty = True
-        
 
     def rotate(self, angle: float):
         """
@@ -147,8 +233,10 @@ class WormLikeCurve:
         """
         # We can just move the starting position of this polymer
         # and then recalculate from the vectors.
+        print(self.start_pos, translation)
         self.start_pos += translation
         self._positions_dirty = True
+        self._positions = self.vectors_to_positions()
 
     @property
     def num_atoms(self):
@@ -158,12 +246,7 @@ class WormLikeCurve:
         Because bonds link two atoms, the
         number of atoms is one more than the number of bonds.
         """
-        return self.num_segments + 1
-
-    @property
-    def num_bonds(self):
-        """Return the number of segments/bonds in the polymer."""
-        return self.num_segments
+        return len(self.bonds) + 1
 
     @property
     def num_angles(self):
@@ -295,13 +378,12 @@ class WormLikeCurve:
 
     def vectors_to_positions(self):
         """Convert the [r, theta] vectors into Cartesian coordinates."""
-        positions = np.empty([self.num_segments + 1, 2])
+        positions = np.empty([len(self.bonds) + 1, 2])
         positions[0, :] = self.start_pos + self._offset
-        for i in range(self.num_segments):
+        for i, bond in enumerate(self.bonds):
             length, angle = self.vectors[i]
             vector = np.array([length * np.cos(angle), length * np.sin(angle)])
-            predecessor = self.bonds[i][0]
-            positions[i + 1] = positions[predecessor] + vector
+            positions[bond[1]] = positions[bond[0]] + vector
 
         # Since we've recalculated, save these positions and mark
         # them as clean.
@@ -309,27 +391,31 @@ class WormLikeCurve:
         self._positions_dirty = False
         return self._positions
 
-    def plot_onto(self, ax, fit_edges: bool = True, **kwargs):
+    def plot_onto(self, ax, fit_edges: bool = True, label_nodes=False, **kwargs):
         """
         Plot this polymer as a collection of lines, detailed by kwargs into the provided axis.
 
         :param ax: a matplotlib axis object to plot onto
-        :param fit_edges: whether to resize xlim and ylim to fit this polymer.
+        :param fit_edges: whether to resize xlim and ylim t bonds_counter)o fit this polymer.
         """
 
         END_SIZE = kwargs.pop("end_size", 0.2)
         lines = []
-        for i in range(self.num_segments):
-            predecessor = self.bonds[i][0]
+        for bond in self.bonds:
             lines.append(
-                np.row_stack([self.positions[predecessor], self.positions[i + 1]])
+                np.row_stack([self.positions[bond[0]], self.positions[bond[1]]])
             )
-        line_collection = LineCollection(lines, **kwargs)
+        collection_linewidths = kwargs.pop("linewidths", 5)
+        collection_colours = kwargs.pop("colors", "purple")
+        behind_line_collection = LineCollection(lines, linewidths=collection_linewidths + 3,
+                                         colors="black", **kwargs)
+        ax.add_collection(behind_line_collection)
+        line_collection = LineCollection(lines, linewidths=collection_linewidths,
+                                         colors=collection_colours, **kwargs)
         ax.add_collection(line_collection)
-        _ = kwargs.pop("linewidths", None)
-        _ = kwargs.pop("colors", None)
-        # Now draw the sticky ends
 
+        
+        # Now draw the sticky ends
         for i in range(self.positions.shape[0]):
             if self.atom_types[i] == 1:
                 color = "purple"
@@ -340,10 +426,14 @@ class WormLikeCurve:
             elif self.atom_types[i] == 4:
                 color = "red"
             circle_end = mpatches.Circle(
-                self.positions[i], END_SIZE / 2, color=color, **kwargs
+                self.positions[i], END_SIZE / 2, facecolor=color, edgecolor="black", linewidth=3, zorder=3, **kwargs
             )
             ax.add_artist(circle_end)
-
+        if label_nodes:
+            for index in range(self.positions.shape[0]):
+                text = ax.text(self.positions[index, 0], self.positions[index, 1], index, color="white")
+                text.set_path_effects([path_effects.Stroke(linewidth=3, foreground='black'),
+                       path_effects.Normal()])
         if fit_edges:
             min_x, min_y = np.min(self.positions, axis=0)
             max_x, max_y = np.max(self.positions, axis=0)
@@ -352,13 +442,13 @@ class WormLikeCurve:
             ax.set_xlim(min_corner, max_corner)
             ax.set_ylim(min_corner, max_corner)
 
-    def to_lammps(self, filename: str):
+    def to_lammps(self, filename: str, *args, **kwargs):
         """
         Write out to a lammps file which can be read by a read_data command.
 
         :param filename: the name of the file to write to.
         """
-        CurveCollection(self).to_lammps(filename)
+        CurveCollection(self).to_lammps(filename, *args, **kwargs)
 
     def apply_transformation_matrix(self, matrix: np.array):
         """
@@ -379,3 +469,14 @@ class WormLikeCurve:
         # cartesian representation.
         self.positions_to_vectors()
         return self
+
+if __name__ == "__main__":
+    TEST_GRAPH = nx.Graph()
+    TEST_GRAPH.add_edges_from([(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (1, 6)])
+    WLC = WormLikeCurve(5, HarmonicBond(1.0, 50.0), AngleBond(1.0, 1.0))
+    WLC._graph_to_vectors(TEST_GRAPH)
+    
+    WLC.to_lammps("./test.data", mass=0.07)
+    FIG, AX = plt.subplots()
+    WLC.plot_onto(AX, label_nodes=True)
+    FIG.show()
