@@ -24,6 +24,8 @@ MEAN_LENGTH = 6
 STD_LENGTH = 0
 DEFAULT_STICKY_FRACTION = 0.2
 MIN_SIZE = 3
+NUM_X = 10
+NUM_Y = 10
 
 LINE_GRAPH = nx.path_graph(MEAN_LENGTH)
 TRIANGLE_GRAPH = nx.Graph()
@@ -39,7 +41,7 @@ DOUBLE_TRIANGLE_GRAPH.add_edges_from([(0, 1), (1, 2), (2, 3),
                                       (9, 13), (13, 14), (14, 15)])
 graphs = [LINE_GRAPH, TRIANGLE_GRAPH, DOUBLE_TRIANGLE_GRAPH]
 CIRCUMCIRCLES = [WormLikeCurve(graph=graph).circumcircle_radius() for graph in graphs]
-weights = [0.0, 1.0, 1.0]
+weights = [1.0, 0.1, 0.1]
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:
@@ -52,13 +54,11 @@ if __name__ == "__main__":
     elif 1 < sticky_fraction:
         raise RuntimeError("Sticky fraction must be less than 1.")
     POLYMER_COLLECTION = CurveCollection()
-    SPACING = 50 * 7
-    num_x = 12
-    num_y = 12
+
     positions_to_index = dict()
     num_added = 0
-    for i in range(num_x):
-        for j in range(num_y):
+    for i in range(NUM_X):
+        for j in range(NUM_Y):
             # start_pos = np.array([x_offset, y_offset])
             start_pos = np.array([i * 2 * max(CIRCUMCIRCLES), j * 2 * max(CIRCUMCIRCLES)])
             # Iterate until we generate a positive size.
@@ -83,6 +83,7 @@ if __name__ == "__main__":
         print(POLYMER.start_pos, POLYMER.centroid)
         POLYMER.rotate(np.random.uniform(0, 2 * np.pi))
         AX.add_artist(patches.Circle(POLYMER.centroid,  radius=POLYMER.circumcircle_radius(), edgecolor="black", fill=False))
-    POLYMER_COLLECTION.plot_onto(AX)
+    POLYMER_COLLECTION.plot_onto(AX, label_nodes=True)
+    print("Writing to polymer_total.data")
     POLYMER_COLLECTION.to_lammps("polymer_total.data")
     plt.show()

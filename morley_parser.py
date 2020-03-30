@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-from rings import PeriodicRingFinder
+from rings.periodic_ring_finder import PeriodicRingFinder
 
 import sys
 
@@ -23,6 +23,8 @@ COLOUR_TO_TYPE[0] = (2,)
 COLOUR_TO_TYPE[1] = (3,)
 CORRESPONDING_COLOURS = {2: 3, 3: 2, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8}
 COLOUR_LUT = {
+    None: "blue",
+    1: "purple",
     2: "blue",
     3: "green",
     4: "orange",
@@ -32,6 +34,45 @@ COLOUR_LUT = {
     8: "brown",
 }
 
+def draw_nonperiodic_coloured(
+    graph: nx.Graph, pos: Dict[int, np.array], ax=None
+):
+    """
+    Draw an aperiodic graph with the nodes coloured correctly.
+
+    :param graph: the graph we wish to draw with node attributes of 'color'
+    :param pos: a dictionary keyed by node id with values being positions
+    :param periodic_box: the periodic box to wrap raound
+    :param ax: the axis to draw on. Can be none for a fresh axis.
+    :return: an axis with the drawn graph on.
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+    edge_list = []
+    periodic_edge_list = []
+    for u, v in graph.edges():
+        edge_list.append((u, v))
+    nodes_in_edge_list = set([item for edge_pair in edge_list for item in edge_pair])
+    nodes_in_edge_list = list(nodes_in_edge_list)
+
+    node_colours = {
+        node_id: (COLOUR_LUT[colour[0]] if colour is not None else "blue")
+        for node_id, colour in graph.nodes(data="color")
+    }
+    nx.draw(
+        graph,
+        pos=pos,
+        ax=ax,
+        node_size=10,
+        node_color=[node_colours[node_id] for node_id in nodes_in_edge_list],
+        edgelist=edge_list,
+        nodelist=nodes_in_edge_list,
+        font_size=8,
+        edgecolors="black",
+        linewidths=0.5,
+    )
+
+    return ax
 
 def draw_periodic_coloured(
     graph: nx.Graph, pos: Dict[int, np.array], periodic_box: np.array, ax=None

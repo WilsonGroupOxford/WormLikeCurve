@@ -20,7 +20,6 @@ from clustering import (
     find_lj_clusters,
     cluster_molecule_bodies,
     find_cluster_centres,
-    find_molecule_terminals,
     connect_clusters,
 )
 from lammps_parser import parse_molecule_topology
@@ -28,8 +27,8 @@ from rings.periodic_ring_finder import PeriodicRingFinder
 from rings.ring_finder import RingFinder
 from morley_parser import draw_periodic_coloured
 
-LJ_BOND = 1.5
-FIND_BODIES = False
+LJ_BOND = 137.5
+FIND_BODIES = True
 
 
 class AnalysisFiles:
@@ -162,9 +161,8 @@ if __name__ == "__main__":
         topology_file = sys.argv[2]
         output_prefix = sys.argv[3]
     else:
-        position_file = "./Data/FRZN_34_2.lammpstrj"
-        topology_file = "./Data/FRZN_34_2.data"
-        output_prefix = "./output/FRZN_34_2"
+        topology_file = "./Data/MSHP_0.05_2.data"
+        output_prefix = "./outputs/MSHP_0.5_2"
 
     with open(position_file) as fi:
         to_read = 0
@@ -188,15 +186,18 @@ if __name__ == "__main__":
 
     universe = mda.Universe(position_file, topology=topology_file, format="LAMMPSDUMP")
     ATOMS, MOLECS, BONDS = parse_molecule_topology(topology_file)
+    TOTAL_GRAPH = nx.Graph()
+    TOTAL_GRAPH.add_edges_from(BONDS)
     ATOM_TYPES = {atom_id: atom["type"] for atom_id, atom in ATOMS.items()}
+    nx.set_node_attributes(TOTAL_GRAPH, ATOM_TYPES, name="atom_types")
     MOLEC_TYPES = {
         molec_id: [ATOM_TYPES[atom_id] for atom_id in molec]
         for molec_id, molec in MOLECS.items()
     }
     OUTPUT_FILES = AnalysisFiles(output_prefix)
-    for timestep in universe.trajectory[425::25]:
-        # Find the terminal atoms, and group them into clusters.
+    for timestep in universe.trajectory[::25]:
         print(timestep)
+        # Find the terminal atoms, and group them into clusters.
         ALL_ATOMS = universe.select_atoms("all")
         ALL_ATOMS.positions *= 1.0 / np.array([x_size, y_size, 1.0])
         TERMINALS = universe.select_atoms("type 2 or type 3")
@@ -205,82 +206,46 @@ if __name__ == "__main__":
         )
         TERMINAL_CLUSTERS = find_lj_clusters(TERMINAL_PAIRS)
 
-        if FIND_BODIES:
-            BODIES = universe.select_atoms("type 4")
-            BODY_PAIRS = find_lj_pairs(BODIES.positions, BODIES.ids, 1.5, cell=cell)
-            body_molec_clusters = cluster_molecule_bodies(MOLECS, MOLEC_TYPES, [1, 4])
-            for i, cluster in body_molec_clusters.items():
-                BODY_PAIRS[i] = BODY_PAIRS[i].union(cluster)
-            BODY_CLUSTERS = find_lj_clusters(BODY_PAIRS)
-            ALL_CLUSTERS = sorted(list(TERMINAL_CLUSTERS.union(BODY_CLUSTERS)))
-            TYPE_CONNECTIONS = {2: [1, 4], 3: [1, 4], 4: [2, 3], 1: [2, 3]}
-        else:
-            ALL_CLUSTERS = sorted(list(TERMINAL_CLUSTERS))
-            TYPE_CONNECTIONS = {2: [3], 3: [2]}
+        BODY_CLUSTERS = [frozenset([item]) for item in universe.select_atoms("type 4").ids]
+        ALL_CLUSTERS = sorted(list(TERMINAL_CLUSTERS.union(BODY_CLUSTERS)))
         # Sort the list of clusters into a consistent list so
         # we can index them.
         CLUSTER_POSITIONS = find_cluster_centres(
             ALL_CLUSTERS, ALL_ATOMS.positions, cutoff=10.0
         )
-
-        MOLEC_TERMINALS = find_molecule_terminals(
-            MOLECS, atom_types=MOLEC_TYPES, type_connections=TYPE_CONNECTIONS,
-        )
-        G = nx.Graph()
-        try:
-            G = connect_clusters(G, MOLEC_TERMINALS, ALL_CLUSTERS)
-        except RuntimeError as ex:
-            # We couldn't form any rings, so carry on merrily.
-            print(ex)
-            continue
-
-        body_attr_dict = defaultdict(dict)
-        terminal_attr_dict = defaultdict(dict)
-        for CLUSTER_ID, CLUSTER in enumerate(ALL_CLUSTERS):
-            if FIND_BODIES and CLUSTER in BODY_CLUSTERS:
-                body_attr_dict[CLUSTER_ID]["type"] = "body"
-            elif CLUSTER in TERMINAL_CLUSTERS:
-                terminal_attr_dict[CLUSTER_ID]["type"] = "terminal"
-            else:
-                print(f"{CLUSTER} is not a valid cluster")
-        nx.set_node_attributes(G, body_attr_dict)
-        nx.set_node_attributes(G, terminal_attr_dict)
-        colour_to_type = defaultdict(lambda: (2, 3))
-        colour_to_type[0] = (2,)
-        colour_to_type[1] = (3,)
-        colours = nx.greedy_color(G, interchange=True)
-        for key, value in colours.items():
-            colours[key] = colour_to_type[value]
+        G = connect_clusters(in_graph=TOTAL_GRAPH, clusters=ALL_CLUSTERS)
+        colours = dict()
+        for i, CLUSTER in enumerate(ALL_CLUSTERS):
+            CLUSTER_ATOM_TYPES = [universe.atoms[atom - 1].type for atom in CLUSTER]
+            MODAL_TYPE = Counter(CLUSTER_ATOM_TYPES).most_common(1)[0][0]
+            colours[i] = (int(MODAL_TYPE), )
+        # nx.draw(G, pos=CLUSTER_POSITIONS)
         nx.set_node_attributes(G, colours, name="color")
-        # nx.write_edgelist(G, f"{position_file}_edges.dat", comments="#", delimiter=",")
-        # with open(f"{position_file}_coords.dat", "w") as fi:
-        #    fi.write("# ID, x, y\n")
-        #    for key, value in sorted(CLUSTER_POSITIONS.items()):
-        #        fi.write(f"{key}, {value[0]}, {value[1]}\n")
         FIG, AX = plt.subplots()
-        try:
-            ring_finder = PeriodicRingFinder(
-                G, CLUSTER_POSITIONS, np.array([x_size, y_size])
-            )
-        except ValueError as ex:
-            print(ex)
-            plt.close(FIG)
-            continue
         AX.set_xlim(box_data[0][0] * 1.1, box_data[0][1] * 1.1)
         AX.set_ylim(box_data[1][0] * 1.1, box_data[1][1] * 1.1)
-        ring_finder.draw_onto(AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30)
+        RING_FINDER_SUCCESSFUL = True
+        try:
+            ring_finder = PeriodicRingFinder(
+               G, CLUSTER_POSITIONS, np.array([x_size, y_size])
+            )
+            ring_finder.draw_onto(AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30)
+        except ValueError as ex:
+            RING_FINDER_SUCCESSFUL = False
+
         draw_periodic_coloured(
             G, pos=CLUSTER_POSITIONS, periodic_box=cell[:2, :], ax=AX
         )
+        
         AX.axis("off")
         FIG.savefig(f"{output_prefix}_{universe.trajectory.time}.pdf")
         plt.close(FIG)
-
-        OUTPUT_FILES.write_coordinations(universe.trajectory.time, G)
-        OUTPUT_FILES.write_areas(universe.trajectory.time, ring_finder.current_rings)
-        OUTPUT_FILES.write_sizes(universe.trajectory.time, ring_finder.current_rings)
-        OUTPUT_FILES.write_edge_lengths(
-            universe.trajectory.time, ring_finder.analyse_edges()
-        )
+        if RING_FINDER_SUCCESSFUL:
+            OUTPUT_FILES.write_coordinations(universe.trajectory.time, G)
+            OUTPUT_FILES.write_areas(universe.trajectory.time, ring_finder.current_rings)
+            OUTPUT_FILES.write_sizes(universe.trajectory.time, ring_finder.current_rings)
+            OUTPUT_FILES.write_edge_lengths(
+                universe.trajectory.time, ring_finder.analyse_edges()
+            )
 
     OUTPUT_FILES.flush()

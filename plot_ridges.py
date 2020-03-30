@@ -12,8 +12,10 @@ import numpy as np
 import scipy.odr
 import scipy.stats
 
-import clustering
 
+import clustering
+import morley_parser
+from rings.ring_finder import RingFinder
 
 def fit_line(x_values, y_values):
     """
@@ -153,10 +155,12 @@ if __name__ == "__main__":
     FIG, AX = plt.subplots()
     BAD_LINES = []
     ALL_JUNCTIONS = []
+    EDGES = set()
     for CONTOUR_ID in np.unique(CONTOUR_IDS):
         MASK = CONTOUR_IDS == CONTOUR_ID
         POSITION_INDICIES = np.argwhere(CONTOUR_IDS == CONTOUR_ID)
         JUNCTION_POINTS = POSITION_INDICIES[[0, -1]]
+        EDGES.add((JUNCTION_POINTS[0][0],JUNCTION_POINTS[1][0]))
         XS, YS = COORDS[:, 0][MASK], COORDS[:, 1][MASK]
         if len(XS) < MIN_LINE_LENGTH:
             continue
@@ -181,11 +185,20 @@ if __name__ == "__main__":
     LJ_PAIRS = clustering.find_lj_pairs(
         COORDS[ALL_JUNCTIONS_FLAT], ALL_JUNCTIONS_FLAT, 4.0
     )
+    FIG.show()
     LJ_CLUSTERS = clustering.find_lj_clusters(LJ_PAIRS)
     CLUSTER_POSITIONS = clustering.find_cluster_centres(LJ_CLUSTERS, COORDS, offset=0)
     for key, value in CLUSTER_POSITIONS.items():
         CLUSTER_POSITIONS[key] = value * np.array([1.0, -1.0])
-    MOLEC_TERMINALS = clustering.find_molecule_terminals(ALL_JUNCTIONS)
+    
+    # MOLEC_TERMINALS = clustering.find_molecule_terminals(ALL_JUNCTIONS)
     G = nx.Graph()
-    G = clustering.connect_clusters(G, MOLEC_TERMINALS, LJ_CLUSTERS)
-    nx.draw(G, ax=AX, pos=CLUSTER_POSITIONS)
+    G.add_edges_from(EDGES)
+    nx.set_node_attributes(G, 2, "atom_types")
+    out_graph = clustering.connect_clusters(in_graph=G, clusters=sorted(list(LJ_CLUSTERS)))
+    morley_parser.colour_graph(out_graph)
+
+    rf = RingFinder(out_graph, CLUSTER_POSITIONS)
+    rf.draw_onto(AX)
+    morley_parser.draw_nonperiodic_coloured(out_graph, ax=AX, pos=CLUSTER_POSITIONS)
+    plt.show()

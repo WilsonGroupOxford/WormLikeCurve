@@ -9,6 +9,7 @@ Created on Wed Oct 30 14:51:06 2019
 from collections import defaultdict
 
 import numpy as np
+import networkx as nx
 import scipy.spatial.distance
 
 
@@ -147,6 +148,7 @@ def find_cluster_centres(
                 cluster_positions[i] = np.mean(positions, axis=0)[0:2]
         else:
             cluster_positions[i] = np.mean(positions, axis=0)[0:2]
+        # print(f"Placing {i} at {cluster_positions[i]}")
     return cluster_positions
 
 
@@ -175,34 +177,119 @@ def find_molecule_terminals(molecules, atom_types, type_connections):
     return molec_terminals
 
 
-def connect_clusters(graph, terminals, clusters):
+def connect_clusters(in_graph, clusters, out_graph=None, body_types=frozenset([4])):
     """
     Connect the clusters to one another via the molecules
     that make them up.
     :param terminals:  a dict, with keys being the ids of one terminal and the values being the ids of the other terminals in this molecule.
     :param clusters: an ordered list of frozensets, with each entry containing a list of real molecules that make up a cluster.
-    :param graph: an empty networkx graph to add these edges to.
+    :param out_graph: an empty networkx graph to add these edges to.
+    :param body_type: a set of atom_types that count as body nodes
     :return graph: a filled networkx graph with these edges in.
     """
+    if out_graph is None:
+        out_graph = nx.Graph()
+
+    node_connected_components = {
+        node: nx.node_connected_component(in_graph, node) for node in in_graph
+    }
     added_edges = set()
+    atom_types = nx.get_node_attributes(in_graph, name="atom_types")
+    if not atom_types:
+        raise  AttributeError("in_graph must have node attribute 'atom_types'")
+
+    # Calculate the body atom id -> cluster id link in advance
+    body_cluster_ids = {}
+    for atom in in_graph:
+        if atom_types[atom] in body_types:
+            body_cluster_id = [atom in body_cluster for body_cluster in clusters].index(
+                True
+            )
+            body_cluster_ids[atom] = body_cluster_id
+
+    if not atom_types:
+        raise RuntimeError('Must provide a graph attribute with name="atom_types".')
+    # Each cluster is made up of atoms which each belong to distinct
+    # connected components of the graph. Find those connected components,
+    # and then find the other clusters in each one.
     for i, cluster in enumerate(clusters):
-        for atom in cluster:
-            for other_molec_end in terminals[atom]:
-                is_connected = np.array(
-                    [other_molec_end in other_cluster for other_cluster in clusters]
-                )
-                connected_clusters = [
-                    item for sublist in np.argwhere(is_connected) for item in sublist
-                ]
-                for other_cluster in connected_clusters:
-                    added_edges.add(frozenset([i, other_cluster]))
-                    graph.add_edge(i, other_cluster)
+        components_in_cluster = [node_connected_components[atom] for atom in cluster]
+        all_nodes = set().union(*components_in_cluster)
+        # Awful dict comprehension to find which other clusters are in this
+        # set of connected components, with entries only where there are
+        # nodes in common and not counting ourselves. This can probably
+        # be accelerated to not do all operations twice.
+        clusters_in_common = {
+            j: all_nodes.intersection(other_cluster)
+            for j, other_cluster in enumerate(clusters)
+            if len(all_nodes.intersection(other_cluster)) != 0 and i != j
+        }
+        # Fast path for isolated molecules
+        if len(clusters_in_common) == 1:
+            for key in clusters_in_common.keys():
+                added_edges.add((i, key))
+        else:
+            # We have to be clever here. Find the shortest path between
+            # each set of nodes, and if it goes through a body node,
+            # add the edge to that instead. This is an O(N^3) horror,
+            # however, depending on the size of the clusters.
+            for atom in cluster:
+                for other_cluster_id in clusters_in_common.keys():
+                    for other_atom in clusters[other_cluster_id]:
+                        # Skip the self-interactions
+                        if other_cluster_id == i:
+                            continue
+                        if other_atom == atom:
+                            continue
+                        # Thankfully, we can rule out atoms that aren't
+                        # in the same connected component as we can't ever
+                        # find a path to them!
+                        if (
+                            node_connected_components[atom]
+                            != node_connected_components[other_atom]
+                        ):
+                            continue
+
+                        # Find the shortest path, and the types along that path
+                        shortest_path_between = nx.shortest_path(
+                            in_graph, atom, other_atom
+                        )
+                    
+                        bodies_atom_path = [
+                            k
+                            for k in shortest_path_between
+                            if atom_types[k] in body_types
+                        ]
+                        # hang on, what the fuck?
+                        if not bodies_atom_path:
+                            added_edges.add((i, other_cluster_id))
+                            continue
+                        bodies_cluster_path = [
+                            body_cluster_ids[k] for k in bodies_atom_path
+                        ]
+                        # Now zip up the pairs along this path to connect the bodies
+                        body_path_pairs = [
+                            (bodies_cluster_path[k], bodies_cluster_path[k + 1])
+                            for k in range(len(bodies_cluster_path) - 1)
+                        ]
+                        
+                        # and finally, add the terminal-body links, making
+                        # sure not to add any self-loops
+                        if i != bodies_cluster_path[0]:
+                            body_path_pairs.append((i, bodies_cluster_path[0]))
+                        if other_cluster_id != bodies_cluster_path[-1]:
+                            body_path_pairs.append(
+                                (other_cluster_id, bodies_cluster_path[-1])
+                                )
+                        added_edges.update(body_path_pairs)
+
     if len(added_edges) == 0:
         raise RuntimeError(
             "Did not connect any clusters together. Double check type_connections"
             + " in find_molecule_terminals, or your cutoff radius."
         )
-    return graph
+    out_graph.add_edges_from(added_edges)
+    return out_graph
 
 
 def cluster_molecule_bodies(molecs, molec_types, types_to_cluster):
