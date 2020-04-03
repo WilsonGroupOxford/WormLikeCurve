@@ -124,7 +124,7 @@ class CurveCollection:
         self.curves.append(curve)
 
     def plot_onto(
-        self, ax, kwarg_list=None, fit_edges: bool = True,
+        self, ax, kwarg_list=None, fit_edges: bool = True, label_nodes: bool =False,
     ):
         """
         Plots these polymers as a collection of lines, detailed by kwargs
@@ -143,10 +143,12 @@ class CurveCollection:
         elif length_difference < 0:
             print("More kwargs provided than there are curves." + "Ignoring excess")
 
+        index_offset = 1
         for i, curve in enumerate(self.curves):
             # Don't pass on edge fitting because we'll
             # do it here.
-            curve.plot_onto(ax, fit_edges=False, **kwarg_list[i])
+            curve.plot_onto(ax, fit_edges=False, label_nodes=label_nodes, index_offset=index_offset, **kwarg_list[i])
+            index_offset += curve.num_atoms
 
         if fit_edges:
             min_x, min_y = np.min(self.positions, axis=0)
@@ -241,16 +243,16 @@ class CurveCollection:
 
             # Angles
             fi.write("Angles\n\n")
-            atom_id = 0
+            atom_offset = 1
             angle_id = 0
             for curve in self.curves:
                 for angle in curve.angles:
                     angle_id += 1
                     # remember to fix a stupid lammps off-by-one
                     fi.write(
-                        f"\t {angle_id} \t {angle[0]} \t {angle[1]+1}"
-                        + f"\t {angle[2]+1} \t {angle[3]+1}\n"
+                        f"\t {angle_id} \t {angle[0]} \t {angle[1]  + atom_offset}"
+                        + f"\t {angle[2] + atom_offset} \t {angle[3]  + atom_offset}\n"
                     )
-                # Skip head 2 to the central atom of the next angle
-                atom_id += 2
+                # Make sure we don't pile all the angles into one molecule
+                atom_offset += curve.num_atoms
             fi.write("\n")

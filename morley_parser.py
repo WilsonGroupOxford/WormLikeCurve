@@ -24,6 +24,7 @@ COLOUR_TO_TYPE[1] = (3,)
 CORRESPONDING_COLOURS = {2: 3, 3: 2, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8}
 COLOUR_LUT = {
     None: "blue",
+    0: "white",
     1: "purple",
     2: "blue",
     3: "green",
@@ -32,6 +33,9 @@ COLOUR_LUT = {
     6: "purple",
     7: "pink",
     8: "brown",
+    9: "cyan",
+   10: "magenta",
+   11: "yellow"
 }
 
 def draw_nonperiodic_coloured(
@@ -49,7 +53,6 @@ def draw_nonperiodic_coloured(
     if ax is None:
         _, ax = plt.subplots()
     edge_list = []
-    periodic_edge_list = []
     for u, v in graph.edges():
         edge_list.append((u, v))
     nodes_in_edge_list = set([item for edge_pair in edge_list for item in edge_pair])
@@ -75,7 +78,7 @@ def draw_nonperiodic_coloured(
     return ax
 
 def draw_periodic_coloured(
-    graph: nx.Graph, pos: Dict[int, np.array], periodic_box: np.array, ax=None
+    graph: nx.Graph, pos: Dict[int, np.array], periodic_box: np.array, ax=None, **kwargs
 ):
     """
     Draw a periodic graph with the nodes coloured correctly.
@@ -107,10 +110,16 @@ def draw_periodic_coloured(
     )
     periodic_nodes = list(periodic_nodes)
 
-    node_colours = {
-        node_id: (COLOUR_LUT[colour[0]] if colour is not None else "blue")
-        for node_id, colour in graph.nodes(data="color")
-    }
+    try:
+        node_colours = {
+            node_id: (COLOUR_LUT[colour[0]] if colour is not None else "blue")
+            for node_id, colour in graph.nodes(data="color")
+        }
+    except TypeError:
+        node_colours = {
+            node_id: (COLOUR_LUT[colour] if colour is not None else "blue")
+            for node_id, colour in graph.nodes(data="color")
+        }
     nx.draw(
         graph,
         pos=pos,
@@ -119,9 +128,10 @@ def draw_periodic_coloured(
         node_color=[node_colours[node_id] for node_id in nodes_in_edge_list],
         edgelist=edge_list,
         nodelist=nodes_in_edge_list,
-        font_size=8,
+        # font_size=8,
         edgecolors="black",
         linewidths=0.5,
+        **kwargs,
     )
 
     node_colours_list = []
@@ -129,6 +139,7 @@ def draw_periodic_coloured(
     new_node_list = []
     new_pos = {key: value for key, value in pos.items()}
     temporary_edges = []
+    temporary_nodes = []
     # We often encounter an edge periodic in more than one
     # way. Keep track, and give each one a virtual position.
     encounters = defaultdict(lambda: 0)
@@ -163,6 +174,7 @@ def draw_periodic_coloured(
         new_edge_list.append((u, new_v))
         new_node_list.extend([u, new_v])
         temporary_edges.append((u, new_v))
+        temporary_nodes.append(new_v)
 
     graph.add_edges_from(temporary_edges)
 
@@ -180,6 +192,7 @@ def draw_periodic_coloured(
     )
 
     graph.remove_edges_from(temporary_edges)
+    graph.remove_nodes_from(temporary_nodes)
     return ax
 
 
@@ -205,7 +218,7 @@ def colour_graph(graph: nx.Graph, colour_to_type: Dict = COLOUR_TO_TYPE):
     return graph
 
 
-def load_morley(prefix: str):
+def load_morley(prefix: str, reset_origin=False):
 
     coords_file = prefix + "_crds.dat"
     network_file = prefix + "_net.dat"
@@ -217,7 +230,6 @@ def load_morley(prefix: str):
         for i, line in enumerate(fi.readlines()):
             coords = [float(item) for item in line.split()]
             pos_dict[i] = np.array(coords)
-    print("Pos dict has", len(pos_dict), "items at the start.")
 
     with open(network_file) as fi:
         for u, line in enumerate(fi.readlines()):
@@ -251,20 +263,17 @@ def load_morley(prefix: str):
             )
         periodic_box = np.array([[0.0, box_max_x], [0.0, box_max_y]], dtype=float)
 
+    if reset_origin:
+        min_x = min(val[0] for val in pos_dict.values())
+        min_y = min(val[1] for val in pos_dict.values())
+        for key in pos_dict.keys():
+            pos_dict[key] += np.array([min_x, min_y]) 
     graph = colour_graph(graph)
-    print("Pos dict has", len(pos_dict), "items at the end.")
     return pos_dict, graph, periodic_box
 
 
 def construct_morley_dual(graph: nx.Graph, pos, periodic_box):
-    print("Pos  has", len(pos), "items at the start.")
     ring_finder = PeriodicRingFinder(graph, pos, periodic_box[:, 1])
-    FIG, AX = plt.subplots()
-    ring_finder.draw_onto(AX)
-    AX.axis("off")
-
-    FIG.savefig("found-rings.pdf")
-    print("Pos  has", len(pos), "items at the end.")
 
     num_nodes = len(graph)
     dual_connections = defaultdict(list)
@@ -303,7 +312,6 @@ def construct_morley_dual(graph: nx.Graph, pos, periodic_box):
         sorted_dual_connections[node] = sorted_node_duals
 
     dual_connections = sorted_dual_connections
-    print(set([item for sublist in dual_connections.values() for item in sublist]))
     morley_connections = nx.get_node_attributes(graph, "dual_connections")
     return dual_connections
 

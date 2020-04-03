@@ -8,7 +8,6 @@ Created on Tue Sep 24 14:29:00 2019
 
 
 import numpy as np
-import copy
 import networkx as nx
 
 import matplotlib.pyplot as plt
@@ -98,12 +97,18 @@ class WormLikeCurve:
         # Set up the bonds and atom types
         self.bonds = [(None, None) for _ in range(len(graph.edges()))]
         self.vectors = np.zeros([len(graph.edges()), 2], dtype=float)
+        # Assign the end nodes so there's a roughly equal number of type 2s
+        # and type 3s across this molecule
         self.atom_types = np.ones([len(graph)], dtype=int)
         atom_types_counter = {2: 0, 3: 0}
         for single_node in single_nodes:
             min_atom_type = min(atom_types_counter, key=atom_types_counter.get)
             self.atom_types[single_node] = min_atom_type
             atom_types_counter[min_atom_type] += 1
+        # Now assign the "branch" nodes
+        for node in graph.nodes():
+            if graph.degree(node) > 2:
+                self.atom_types[node] = 4
         open_nodes = set([start_node])
         satisfied_nodes = set()
         self.angles = []
@@ -130,7 +135,6 @@ class WormLikeCurve:
                     raise RuntimeError(f"The shortest path from this neighbour to the start doesn't go through {this_node}")
                 if len(edge_indices) >= 2:
                     last_edge = edge_indices[-2]
-                    self.angles.append((self.bonds[last_edge][0], this_node, neighbour))
                     last_angle = self.vectors[last_edge, 1]
                 else:
                     last_angle = 0.0
@@ -143,21 +147,39 @@ class WormLikeCurve:
             satisfied_nodes.add(this_node)
         self._positions_dirty = True
         self._positions = None
-        # Calculate and assign atom types
-        for i, angle in enumerate(self.angles):
-            # Calculate the true angle between the neighbours
-            vec_1 = self.positions[angle[2]] - self.positions[angle[1]]
-            vec_2 = self.positions[angle[1]] - self.positions[angle[0]]
-                   
-            vec_1 /= np.linalg.norm(vec_1)
-            vec_2 /= np.linalg.norm(vec_2)
-            # TODO: add the factor of pi only if y change is negative
-            angle_between = np.pi - np.arccos(np.clip(np.dot(vec_1, vec_2), -1.0, 1.0))
-            if angle_between > 1e-10:
-                angle_type = int(np.round(2 * np.pi / angle_between)) - 1
+        
+        # Generate the angles all the way around a node
+        self.angles = []
+        for node in sorted(graph.nodes()):
+            if graph.degree(node) == 1:
+                continue
+            neighbours_angles = []
+            for neighbour in graph.neighbors(node):
+                vec = self.positions[neighbour] - self.positions[node]
+                vec /= np.linalg.norm(vec)
+                angle_with_x = np.arccos(vec[0])
+                if vec[1] < 0:
+                    angle_with_x *= -1
+                neighbours_angles.append((neighbour, angle_with_x))
+            # Now sort these according to their angle from the y axis
+            # Adjacent entries in this list are "neighbouring vectors"
+            sorted_angles = sorted(neighbours_angles, key=lambda tup: tup[1])
+
+            # For threes and above, make sure the angles add up to 2pi.
+            # don't do this for twos because that means we double-count
+            if graph.degree(node) == 2:
+                max_pair = len(sorted_angles) - 1  
             else:
-                angle_type = 1
-            self.angles[i] = [angle_type, *angle]
+                max_pair = len(sorted_angles)   
+     
+            for i in range(max_pair):
+                if i == len(sorted_angles) - 1:
+                    next_i = 0
+                else:
+                    next_i = i+1
+                pair = sorted_angles[i], sorted_angles[next_i]
+                # remember stupid LAMMPS off-by-one
+                self.angles.append((graph.degree(node) - 1, pair[1][0], node, pair[0][0]))
 
     @property
     def positions(self) -> np.array:
@@ -400,12 +422,12 @@ class WormLikeCurve:
             longest_distance = max(0.0, distance)
         return longest_distance
         
-    def plot_onto(self, ax, fit_edges: bool = True, label_nodes=False, **kwargs):
+    def plot_onto(self, ax, fit_edges: bool = True, label_nodes=False, index_offset=0, **kwargs):
         """
         Plot this polymer as a collection of lines, detailed by kwargs into the provided axis.
 
         :param ax: a matplotlib axis object to plot onto
-        :param fit_edges: whether to resize xlim and ylim t bonds_counter)o fit this polymer.
+        :param fit_edges: whether to resize xlim and ylim to fit this polymer.
         """
 
         END_SIZE = kwargs.pop("end_size", 10)
@@ -423,23 +445,17 @@ class WormLikeCurve:
                                          colors=collection_colours, **kwargs)
         ax.add_collection(line_collection)
 
+        # None at the start for stupid LAMMPS off-by-one
+        TYPES_TO_COLOURS = [None, "purple", "blue", "green", "red"]
         # Now draw the sticky ends
         for i in range(self.positions.shape[0]):
-            if self.atom_types[i] == 1:
-                color = "purple"
-            elif self.atom_types[i] == 2:
-                color = "blue"
-            elif self.atom_types[i] == 3:
-                color = "green"
-            elif self.atom_types[i] == 4:
-                color = "red"
             circle_end = mpatches.Circle(
-                self.positions[i], END_SIZE / 2, facecolor=color, edgecolor="black", linewidth=3, zorder=3, **kwargs
+                self.positions[i], END_SIZE / 2, facecolor=TYPES_TO_COLOURS[self.atom_types[i]], edgecolor="black", linewidth=3, zorder=3, **kwargs
             )
             ax.add_artist(circle_end)
         if label_nodes:
             for index in range(self.positions.shape[0]):
-                text = ax.text(self.positions[index, 0], self.positions[index, 1], index, color="white", zorder=4)
+                text = ax.text(self.positions[index, 0], self.positions[index, 1], index + index_offset, color=TYPES_TO_COLOURS[self.atom_types[index]], zorder=4, ha="center", va="center")
                 text.set_path_effects([path_effects.Stroke(linewidth=3, foreground='black'),
                        path_effects.Normal()])
         if fit_edges:
@@ -499,8 +515,9 @@ if __name__ == "__main__":
                         harmonic_bond=HarmonicBond(1.0, 50.0),
                         angle_bond=AngleBond(1.0, 1.0),
                         start_pos=np.array([0.0, 0.0]))
+    print(WLC.angles)
     WLC.recentre()
-    # WLC.to_lammps("./test.data", mass=0.07)
+    WLC.to_lammps("./test.data", mass=0.07)
     FIG, AX = plt.subplots()
     WLC.plot_onto(AX, label_nodes=True)
     FIG.show()
