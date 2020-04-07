@@ -17,6 +17,7 @@ import clustering
 import morley_parser
 from rings.ring_finder import RingFinder
 
+
 def fit_line(x_values, y_values):
     """
     Fit an orthogonal least squares line to the
@@ -160,7 +161,7 @@ if __name__ == "__main__":
         MASK = CONTOUR_IDS == CONTOUR_ID
         POSITION_INDICIES = np.argwhere(CONTOUR_IDS == CONTOUR_ID)
         JUNCTION_POINTS = POSITION_INDICIES[[0, -1]]
-        EDGES.add((JUNCTION_POINTS[0][0],JUNCTION_POINTS[1][0]))
+        EDGES.add((JUNCTION_POINTS[0][0], JUNCTION_POINTS[1][0]))
         XS, YS = COORDS[:, 0][MASK], COORDS[:, 1][MASK]
         if len(XS) < MIN_LINE_LENGTH:
             continue
@@ -190,12 +191,14 @@ if __name__ == "__main__":
     CLUSTER_POSITIONS = clustering.find_cluster_centres(LJ_CLUSTERS, COORDS, offset=0)
     for key, value in CLUSTER_POSITIONS.items():
         CLUSTER_POSITIONS[key] = value * np.array([1.0, -1.0])
-    
+
     # MOLEC_TERMINALS = clustering.find_molecule_terminals(ALL_JUNCTIONS)
     G = nx.Graph()
     G.add_edges_from(EDGES)
     nx.set_node_attributes(G, 2, "atom_types")
-    out_graph = clustering.connect_clusters(in_graph=G, clusters=sorted(list(LJ_CLUSTERS)))
+    out_graph = clustering.connect_clusters(
+        in_graph=G, clusters=sorted(list(LJ_CLUSTERS))
+    )
     morley_parser.colour_graph(out_graph)
 
     rf = RingFinder(out_graph, CLUSTER_POSITIONS)

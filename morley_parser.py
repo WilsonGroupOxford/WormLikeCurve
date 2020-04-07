@@ -34,13 +34,12 @@ COLOUR_LUT = {
     7: "pink",
     8: "brown",
     9: "cyan",
-   10: "magenta",
-   11: "yellow"
+    10: "magenta",
+    11: "yellow",
 }
 
-def draw_nonperiodic_coloured(
-    graph: nx.Graph, pos: Dict[int, np.array], ax=None
-):
+
+def draw_nonperiodic_coloured(graph: nx.Graph, pos: Dict[int, np.array], ax=None):
     """
     Draw an aperiodic graph with the nodes coloured correctly.
 
@@ -76,6 +75,7 @@ def draw_nonperiodic_coloured(
     )
 
     return ax
+
 
 def draw_periodic_coloured(
     graph: nx.Graph, pos: Dict[int, np.array], periodic_box: np.array, ax=None, **kwargs
@@ -267,7 +267,7 @@ def load_morley(prefix: str, reset_origin=False):
         min_x = min(val[0] for val in pos_dict.values())
         min_y = min(val[1] for val in pos_dict.values())
         for key in pos_dict.keys():
-            pos_dict[key] += np.array([min_x, min_y]) 
+            pos_dict[key] += np.array([min_x, min_y])
     graph = colour_graph(graph)
     return pos_dict, graph, periodic_box
 

@@ -196,7 +196,7 @@ def connect_clusters(in_graph, clusters, out_graph=None, body_types=frozenset([4
     added_edges = set()
     atom_types = nx.get_node_attributes(in_graph, name="atom_types")
     if not atom_types:
-        raise  AttributeError("in_graph must have node attribute 'atom_types'")
+        raise AttributeError("in_graph must have node attribute 'atom_types'")
 
     # Calculate the body atom id -> cluster id link in advance
     body_cluster_ids = {}
@@ -254,7 +254,7 @@ def connect_clusters(in_graph, clusters, out_graph=None, body_types=frozenset([4
                         shortest_path_between = nx.shortest_path(
                             in_graph, atom, other_atom
                         )
-                    
+
                         bodies_atom_path = [
                             k
                             for k in shortest_path_between
@@ -272,7 +272,7 @@ def connect_clusters(in_graph, clusters, out_graph=None, body_types=frozenset([4
                             (bodies_cluster_path[k], bodies_cluster_path[k + 1])
                             for k in range(len(bodies_cluster_path) - 1)
                         ]
-                        
+
                         # and finally, add the terminal-body links, making
                         # sure not to add any self-loops
                         if i != bodies_cluster_path[0]:
@@ -280,7 +280,7 @@ def connect_clusters(in_graph, clusters, out_graph=None, body_types=frozenset([4
                         if other_cluster_id != bodies_cluster_path[-1]:
                             body_path_pairs.append(
                                 (other_cluster_id, bodies_cluster_path[-1])
-                                )
+                            )
                         added_edges.update(body_path_pairs)
 
     if len(added_edges) == 0:

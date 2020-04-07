@@ -206,7 +206,9 @@ if __name__ == "__main__":
         )
         TERMINAL_CLUSTERS = find_lj_clusters(TERMINAL_PAIRS)
 
-        BODY_CLUSTERS = [frozenset([item]) for item in universe.select_atoms("type 4").ids]
+        BODY_CLUSTERS = [
+            frozenset([item]) for item in universe.select_atoms("type 4").ids
+        ]
         ALL_CLUSTERS = sorted(list(TERMINAL_CLUSTERS.union(BODY_CLUSTERS)))
         # Sort the list of clusters into a consistent list so
         # we can index them.
@@ -218,7 +220,7 @@ if __name__ == "__main__":
         for i, CLUSTER in enumerate(ALL_CLUSTERS):
             CLUSTER_ATOM_TYPES = [universe.atoms[atom - 1].type for atom in CLUSTER]
             MODAL_TYPE = Counter(CLUSTER_ATOM_TYPES).most_common(1)[0][0]
-            colours[i] = (int(MODAL_TYPE), )
+            colours[i] = (int(MODAL_TYPE),)
         # nx.draw(G, pos=CLUSTER_POSITIONS)
         nx.set_node_attributes(G, colours, name="color")
         FIG, AX = plt.subplots()
@@ -227,23 +229,29 @@ if __name__ == "__main__":
         RING_FINDER_SUCCESSFUL = True
         try:
             ring_finder = PeriodicRingFinder(
-               G, CLUSTER_POSITIONS, np.array([x_size, y_size])
+                G, CLUSTER_POSITIONS, np.array([x_size, y_size])
             )
-            ring_finder.draw_onto(AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30)
+            ring_finder.draw_onto(
+                AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30
+            )
         except ValueError as ex:
             RING_FINDER_SUCCESSFUL = False
 
         draw_periodic_coloured(
             G, pos=CLUSTER_POSITIONS, periodic_box=cell[:2, :], ax=AX
         )
-        
+
         AX.axis("off")
         FIG.savefig(f"{output_prefix}_{universe.trajectory.time}.pdf")
         plt.close(FIG)
         if RING_FINDER_SUCCESSFUL:
             OUTPUT_FILES.write_coordinations(universe.trajectory.time, G)
-            OUTPUT_FILES.write_areas(universe.trajectory.time, ring_finder.current_rings)
-            OUTPUT_FILES.write_sizes(universe.trajectory.time, ring_finder.current_rings)
+            OUTPUT_FILES.write_areas(
+                universe.trajectory.time, ring_finder.current_rings
+            )
+            OUTPUT_FILES.write_sizes(
+                universe.trajectory.time, ring_finder.current_rings
+            )
             OUTPUT_FILES.write_edge_lengths(
                 universe.trajectory.time, ring_finder.analyse_edges()
             )
