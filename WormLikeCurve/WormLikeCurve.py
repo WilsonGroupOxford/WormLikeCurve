@@ -24,6 +24,7 @@ except ModuleNotFoundError:
     from CurveCollection import CurveCollection
     from Helpers import boltzmann_distrib
 
+
 class WormLikeCurve:
     """
     A class describing a Worm-like curve polymer.
@@ -39,7 +40,7 @@ class WormLikeCurve:
     def __init__(
         self,
         harmonic_bond: HarmonicBond = HarmonicBond(k=1.0, length=50.0),
-        angle_bond: AngleBond =AngleBond(k=100.0, angle=np.pi),
+        angle_bond: AngleBond = AngleBond(k=100.0, angle=np.pi),
         num_segments: int = None,
         graph: nx.Graph = None,
         start_pos=np.array([0, 0]),
@@ -66,6 +67,7 @@ class WormLikeCurve:
         self._positions_dirty = True
         self._positions = None
         self._offset = np.zeros([2], dtype=float)
+        self._circumcircle = None
 
         if num_segments is None and graph is None:
             raise RuntimeError("Must specify one of num_segments or graph")
@@ -129,10 +131,15 @@ class WormLikeCurve:
                 # We now need to keep track of the cumulative angle up
                 # until this point.
                 shortest_path = nx.shortest_path(graph, start_node, neighbour)
-                path_to_edges = [(shortest_path[i], shortest_path[i+1]) for i in range(len(shortest_path) - 1)]
+                path_to_edges = [
+                    (shortest_path[i], shortest_path[i + 1])
+                    for i in range(len(shortest_path) - 1)
+                ]
                 edge_indices = [self.bonds.index(edge) for edge in path_to_edges]
                 if this_node not in self.bonds[edge_indices[-1]]:
-                    raise RuntimeError(f"The shortest path from this neighbour to the start doesn't go through {this_node}")
+                    raise RuntimeError(
+                        f"The shortest path from this neighbour to the start doesn't go through {this_node}"
+                    )
                 if len(edge_indices) >= 2:
                     last_edge = edge_indices[-2]
                     last_angle = self.vectors[last_edge, 1]
@@ -141,13 +148,13 @@ class WormLikeCurve:
                 self.vectors[bonds_counter, :] = length, angle + last_angle
                 actual_neighbours += 1
                 bonds_counter += 1
-                
+
             open_nodes.update(node_neighbours)
             open_nodes = open_nodes.difference(satisfied_nodes)
             satisfied_nodes.add(this_node)
         self._positions_dirty = True
         self._positions = None
-        
+
         # Generate the angles all the way around a node
         self.angles = []
         for node in sorted(graph.nodes()):
@@ -168,18 +175,20 @@ class WormLikeCurve:
             # For threes and above, make sure the angles add up to 2pi.
             # don't do this for twos because that means we double-count
             if graph.degree(node) == 2:
-                max_pair = len(sorted_angles) - 1  
+                max_pair = len(sorted_angles) - 1
             else:
-                max_pair = len(sorted_angles)   
-     
+                max_pair = len(sorted_angles)
+
             for i in range(max_pair):
                 if i == len(sorted_angles) - 1:
                     next_i = 0
                 else:
-                    next_i = i+1
+                    next_i = i + 1
                 pair = sorted_angles[i], sorted_angles[next_i]
                 # remember stupid LAMMPS off-by-one
-                self.angles.append((graph.degree(node) - 1, pair[1][0], node, pair[0][0]))
+                self.angles.append(
+                    (graph.degree(node) - 1, pair[1][0], node, pair[0][0])
+                )
 
     @property
     def positions(self) -> np.array:
@@ -199,7 +208,10 @@ class WormLikeCurve:
 
         :param proportion: the fraction of sites between 0 and 1 to make sticky
         """
-        assert 0 < proportion, "Proportion must be a positive number between 0 and 1"
+        # Fast past if we don't add any sticky sites.
+        if proportion == 0:
+            return
+        assert 0 <= proportion, "Proportion must be a positive number between 0 and 1"
         assert 1 >= proportion, "Proportion must be a positive number between 0 and 1"
         num_body_atoms = self.num_atoms - 2
         body_atoms = np.random.choice(
@@ -231,6 +243,7 @@ class WormLikeCurve:
         """
         self.vectors[:, 1] += angle
         self._positions_dirty = True
+        self._circumcircle = None
         self.recentre()
 
     def rescale(self, scale_factor: float):
@@ -247,6 +260,7 @@ class WormLikeCurve:
         # Move the origin, and regenerate.
         self.start_pos *= scale_factor
         self._offset *= scale_factor
+        self._circumcircle = None
         self._positions_dirty = True
 
     def translate(self, translation: np.array):
@@ -415,14 +429,19 @@ class WormLikeCurve:
         return self._positions
 
     def circumcircle_radius(self):
-        distance_from_origin = self.positions - self.centroid
-        longest_distance = 0.0
-        for row in distance_from_origin:
-            distance = np.linalg.norm(row)
-            longest_distance = max(0.0, distance)
-        return longest_distance
-        
-    def plot_onto(self, ax, fit_edges: bool = True, label_nodes=False, index_offset=0, **kwargs):
+        if self._circumcircle is None:
+
+            distance_from_origin = self.positions - self.centroid
+            longest_distance = 0.0
+            for row in distance_from_origin:
+                distance = np.linalg.norm(row)
+                longest_distance = max(0.0, distance)
+            self._circumcircle = longest_distance
+        return self._circumcircle
+
+    def plot_onto(
+        self, ax, fit_edges: bool = True, label_nodes=False, index_offset=0, **kwargs
+    ):
         """
         Plot this polymer as a collection of lines, detailed by kwargs into the provided axis.
 
@@ -438,11 +457,13 @@ class WormLikeCurve:
             )
         collection_linewidths = kwargs.pop("linewidths", 5)
         collection_colours = kwargs.pop("colors", "purple")
-        behind_line_collection = LineCollection(lines, linewidths=collection_linewidths + 3,
-                                         colors="black", **kwargs)
+        behind_line_collection = LineCollection(
+            lines, linewidths=collection_linewidths + 3, colors="black", **kwargs
+        )
         ax.add_collection(behind_line_collection)
-        line_collection = LineCollection(lines, linewidths=collection_linewidths,
-                                         colors=collection_colours, **kwargs)
+        line_collection = LineCollection(
+            lines, linewidths=collection_linewidths, colors=collection_colours, **kwargs
+        )
         ax.add_collection(line_collection)
 
         # None at the start for stupid LAMMPS off-by-one
@@ -450,14 +471,32 @@ class WormLikeCurve:
         # Now draw the sticky ends
         for i in range(self.positions.shape[0]):
             circle_end = mpatches.Circle(
-                self.positions[i], END_SIZE / 2, facecolor=TYPES_TO_COLOURS[self.atom_types[i]], edgecolor="black", linewidth=3, zorder=3, **kwargs
+                self.positions[i],
+                END_SIZE / 2,
+                facecolor=TYPES_TO_COLOURS[self.atom_types[i]],
+                edgecolor="black",
+                linewidth=3,
+                zorder=3,
+                **kwargs,
             )
             ax.add_artist(circle_end)
         if label_nodes:
             for index in range(self.positions.shape[0]):
-                text = ax.text(self.positions[index, 0], self.positions[index, 1], index + index_offset, color=TYPES_TO_COLOURS[self.atom_types[index]], zorder=4, ha="center", va="center")
-                text.set_path_effects([path_effects.Stroke(linewidth=3, foreground='black'),
-                       path_effects.Normal()])
+                text = ax.text(
+                    self.positions[index, 0],
+                    self.positions[index, 1],
+                    index + index_offset,
+                    color=TYPES_TO_COLOURS[self.atom_types[index]],
+                    zorder=4,
+                    ha="center",
+                    va="center",
+                )
+                text.set_path_effects(
+                    [
+                        path_effects.Stroke(linewidth=3, foreground="black"),
+                        path_effects.Normal(),
+                    ]
+                )
         if fit_edges:
             min_x, min_y = np.min(self.positions, axis=0)
             max_x, max_y = np.max(self.positions, axis=0)
@@ -494,27 +533,92 @@ class WormLikeCurve:
         self.positions_to_vectors()
         return self
 
+    def collides_with(self, other, periodic_box=None) -> bool:
+        """
+        Test if this WLC collides with another WLC.
+        
+        A collision is defined if two atoms in different molecules are within half a
+        bond length of one another. 
+        :param other: the other wormlike curve to test
+        :param periodic_box: A box to apply minimum image conventions over. Can be None, for no periodicity. Should be in the form [[x_min, x_max], [y_min, y_max], [z_min, z_max]] or [[x_min, x_max], [y_min, y_max]].
+        """
+
+        # Ultra fast path -- this is us, so we can't collide with ourselves!
+        if self is other:
+            return False
+        # Fast path, are these circumcircles within a cutoff.
+        self_bond_length = self.harmonic_bond.length / 2
+        self_circumcircle = self.circumcircle_radius()
+        other_bond_length = other.harmonic_bond.length / 2
+        other_circumcircle = self.circumcircle_radius()
+
+        centroid_separation = np.linalg.norm(other.centroid - self.centroid)
+        if (
+            centroid_separation
+            > self_circumcircle
+            + other_circumcircle
+            + self_bond_length
+            + other_bond_length
+        ):
+            return False
+
+        # Slow path, now we have to check all atoms.
+        for position in self.positions:
+            for other_position in other.positions:
+                separation = position - other_position
+                # Minimum image convention correction.
+                if periodic_box is not None:
+                    for dim in range(separation.shape[0]):
+                        halfbox = np.abs(periodic_box[dim, 1] - periodic_box[dim, 0])
+                        if separation[dim] > halfbox:
+                            separation[dim] -= halfbox
+                        elif separation[dim] < -halfbox:
+                            separation[dim] += halfbox
+                distance = np.linalg.norm(separation)
+
+                if distance < self_bond_length + other_bond_length:
+                    # We've detected a collision!
+                    return True
+        # No collisions found, we're in the clear.
+        return False
+
 
 if __name__ == "__main__":
     TRIANGLE_GRAPH = nx.Graph()
-    TRIANGLE_GRAPH.add_edges_from([(0, 1), (1, 2), (2, 3),
-                               (0, 4), (4, 5), (5, 6),
-                               (0, 7), (7, 8), (8, 9)])
+    TRIANGLE_GRAPH.add_edges_from(
+        [(0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6), (0, 7), (7, 8), (8, 9)]
+    )
 
     # nx.draw(TRIANGLE_GRAPH)
-    
+
     DOUBLE_TRIANGLE_GRAPH = nx.Graph()
-    DOUBLE_TRIANGLE_GRAPH.add_edges_from([(0, 1), (1, 2), (2, 3),
-                                      (0, 4), (4, 5), (5, 6),
-                                      (0, 7), (7, 8), (8, 9),
-                                      (9, 10), (10, 11), (11, 12),
-                                      (9, 13), (13, 14), (14, 15)])
+    DOUBLE_TRIANGLE_GRAPH.add_edges_from(
+        [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (0, 4),
+            (4, 5),
+            (5, 6),
+            (0, 7),
+            (7, 8),
+            (8, 9),
+            (9, 10),
+            (10, 11),
+            (11, 12),
+            (9, 13),
+            (13, 14),
+            (14, 15),
+        ]
+    )
     TEST_GRAPH = nx.Graph()
     TEST_GRAPH.add_edges_from([(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (1, 6)])
-    WLC = WormLikeCurve(graph=DOUBLE_TRIANGLE_GRAPH,
-                        harmonic_bond=HarmonicBond(1.0, 50.0),
-                        angle_bond=AngleBond(1.0, 1.0),
-                        start_pos=np.array([0.0, 0.0]))
+    WLC = WormLikeCurve(
+        graph=DOUBLE_TRIANGLE_GRAPH,
+        harmonic_bond=HarmonicBond(1.0, 50.0),
+        angle_bond=AngleBond(1.0, 1.0),
+        start_pos=np.array([0.0, 0.0]),
+    )
     print(WLC.angles)
     WLC.recentre()
     WLC.to_lammps("./test.data", mass=0.07)

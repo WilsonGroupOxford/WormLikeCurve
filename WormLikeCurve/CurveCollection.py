@@ -124,7 +124,7 @@ class CurveCollection:
         self.curves.append(curve)
 
     def plot_onto(
-        self, ax, kwarg_list=None, fit_edges: bool = True, label_nodes: bool =False,
+        self, ax, kwarg_list=None, fit_edges: bool = True, label_nodes: bool = False,
     ):
         """
         Plots these polymers as a collection of lines, detailed by kwargs
@@ -147,17 +147,28 @@ class CurveCollection:
         for i, curve in enumerate(self.curves):
             # Don't pass on edge fitting because we'll
             # do it here.
-            curve.plot_onto(ax, fit_edges=False, label_nodes=label_nodes, index_offset=index_offset, **kwarg_list[i])
+            curve.plot_onto(
+                ax,
+                fit_edges=False,
+                label_nodes=label_nodes,
+                index_offset=index_offset,
+                **kwarg_list[i],
+            )
             index_offset += curve.num_atoms
 
         if fit_edges:
+            print(
+                "Fitting edges to, ",
+                np.min(self.positions, axis=0),
+                np.max(self.positions, axis=0),
+            )
             min_x, min_y = np.min(self.positions, axis=0)
             max_x, max_y = np.max(self.positions, axis=0)
             min_corner = (min(min_x, min_y) * 1.1) - 0.1
             max_corner = (max(max_x, max_y) * 1.1) + 0.1
             ax.set_xlim(min_corner, max_corner)
             ax.set_ylim(min_corner, max_corner)
-            
+
     def box_to_origin(self):
         min_x, min_y = np.min(self.positions, axis=0)
         self.translate(-np.array([min_x, min_y], dtype=float))
@@ -181,7 +192,7 @@ class CurveCollection:
             angle_types = set()
             for curve in self.curves:
                 angle_types.update([angle[0] for angle in curve.angles])
-            
+
             fi.write("\t " + f"{len(angle_types)}" + " \t angle types\n\n")
 
             if periodic_box is None:
