@@ -9,9 +9,11 @@ Created on Wed Oct 30 14:48:26 2019
 from collections import defaultdict
 
 import numpy as np
+from typing import Tuple, Dict, List
 
-
-def parse_molecule_topology(filename: str):
+def parse_molecule_topology(filename: str) -> Tuple[Dict[int, Dict[str, Union[str, np.array]]],
+                                                    Dict[int, List[int]],
+                                                    List[Tuple[int, int]]]:
     """
     Extracts atom, molecule and position information
     from a LAMMPS data file.

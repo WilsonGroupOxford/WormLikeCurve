@@ -37,17 +37,10 @@ def calculate_edge_factor(angle: float) -> float:
      /.    <- 2^(1/6)
     Assumes the side lengths of the regular shape are the minima
     of a Lennard-Jones potential with sigma = 1
-    Parameters
-    ----------
-    angle : float
+    : param angle : 
         The interior angle of the regular shape
-    num_segments : int
-        The number of segments of the connecting line, so that we can
-        calculate the length fraction this takes up.
 
-    Returns
-    -------
-    edge_factor, a fraction of the total length that the gap here should be.
+    :return: edge_factor, a fraction of the total length that the gap here should be.
 
     """
     return 2 ** (1 / 6) / (2 * np.cos((np.pi - angle) / 2.0))
@@ -151,11 +144,13 @@ def graph_to_molecules(
 
 
 def hexagonal_lattice_graph(
-    m, n, periodic=False, with_positions=True, create_using=None
-):
+    m: int, n:int, periodic:bool=False, with_positions:bool=True, create_using: nx.Graph=None
+) -> nx.Graph:
     """
     Return an `m` by `n` hexagonal lattice graph.
 
+    Taken from networkx source code and modified by me, to remove the offset.
+    
     The *hexagonal lattice graph* is a graph whose nodes and edges are
     the `hexagonal tiling`_ of the plane.
 
@@ -172,35 +167,29 @@ def hexagonal_lattice_graph(
 
     Parameters
     ----------
-    m : int
-        The number of rows of hexagons in the lattice.
+    : param m : The number of rows of hexagons in the lattice.
 
-    n : int
-        The number of columns of hexagons in the lattice.
+    :param n : The number of columns of hexagons in the lattice.
 
-    periodic : bool
-        Whether to make a periodic grid by joining the boundary vertices.
+    : periodic : Whether to make a periodic grid by joining the boundary vertices.
         For this to work `n` must be odd and both `n > 1` and `m > 1`.
         The periodic connections create another row and column of hexagons
         so these graphs have fewer nodes as boundary nodes are identified.
 
-    with_positions : bool (default: True)
+    : with_positions : (default: True)
         Store the coordinates of each node in the graph node attribute 'pos'.
         The coordinates provide a lattice with vertical columns of hexagons
         offset to interleave and cover the plane.
         Periodic positions shift the nodes vertically in a nonlinear way so
         the edges don't overlap so much.
 
-    create_using : NetworkX graph
+    :param create_using : NetworkX graph
         If specified, this must be an instance of a NetworkX graph
         class. It will be cleared of nodes and edges and filled
         with the new graph. Usually used to set the type of the graph.
         If graph is directed, edges will point up or right.
 
-    Returns
-    -------
-    NetworkX graph
-        The *m* by *n* hexagonal lattice graph.
+    :return: The *m* by *n* hexagonal lattice graph.
     """
     G = create_using if create_using is not None else nx.Graph()
     G.clear()
