@@ -144,7 +144,11 @@ def graph_to_molecules(
 
 
 def hexagonal_lattice_graph(
-    m: int, n:int, periodic:bool=False, with_positions:bool=True, create_using: nx.Graph=None
+    m: int,
+    n: int,
+    periodic: bool = False,
+    with_positions: bool = True,
+    create_using: nx.Graph = None,
 ) -> nx.Graph:
     """
     Return an `m` by `n` hexagonal lattice graph.

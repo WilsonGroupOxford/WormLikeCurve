@@ -218,9 +218,9 @@ def colour_graph(graph: nx.Graph, colour_to_type: Dict = COLOUR_TO_TYPE) -> nx.G
     return graph
 
 
-def load_morley(prefix: str, reset_origin: bool =False) -> Tuple[Dict[int, np.array],
-                                                                 nx.Graph,
-                                                                 np.array]:
+def load_morley(
+    prefix: str, reset_origin: bool = False
+) -> Tuple[Dict[int, np.array], nx.Graph, np.array]:
 
     coords_file = prefix + "_crds.dat"
     network_file = prefix + "_net.dat"
@@ -274,7 +274,9 @@ def load_morley(prefix: str, reset_origin: bool =False) -> Tuple[Dict[int, np.ar
     return pos_dict, graph, periodic_box
 
 
-def construct_morley_dual(graph: nx.Graph, pos: Dict[int, np.array], periodic_box: np.array):
+def construct_morley_dual(
+    graph: nx.Graph, pos: Dict[int, np.array], periodic_box: np.array
+):
     ring_finder = PeriodicRingFinder(graph, pos, periodic_box[:, 1])
 
     num_nodes = len(graph)
