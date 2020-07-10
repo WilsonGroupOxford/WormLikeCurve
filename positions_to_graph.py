@@ -24,7 +24,7 @@ from clustering import (
 )
 from lammps_parser import parse_molecule_topology
 from rings.periodic_ring_finder import PeriodicRingFinder
-from rings.ring_finder import RingFinder, RingFinderError
+from rings.ring_finder import RingFinder, RingFinderError, convert_to_ring_graph
 from morley_parser import draw_periodic_coloured
 
 LJ_BOND = 137.5
@@ -49,6 +49,10 @@ class AnalysisFiles:
         self.coordinations_prefixes = []
         self.coordinations_data = []
         self.coordinations_file = f"{prefix}_coordinations.dat"
+        
+        self.assortativity_prefixes = []
+        self.assortativity_data = []
+        self.assortativity_file = f"{prefix}_assortativity.dat"
 
     def write_coordinations(self, prefix, graph):
         """
@@ -88,6 +92,11 @@ class AnalysisFiles:
         self.edges_data.append(sorted(edge_length_list))
         self.edges_prefixes.append(str(prefix))
 
+    def write_assortativity(self, prefix, assort):
+        self.assortativity_data.append(str(assort))
+        self.assortativity_prefixes.append(str(prefix))
+        
+        
     def write_sizes(self, prefix, ring_list):
         ring_sizes = Counter(len(ring) for ring in ring_list)
         self.rings_data.append(ring_sizes)
@@ -148,6 +157,16 @@ class AnalysisFiles:
                     self.edges_prefixes[i]
                     + ",  "
                     + ", ".join(f"{item:.2f}" for item in row)
+                    + "\n"
+                )
+                
+        with open(self.assortativity_file, "w") as fi:
+            fi.write("# Timestep, Ring Assortativity\n")
+            for i, row in enumerate(self.assortativity_data):
+                fi.write(
+                    self.assortativity_prefixes[i]
+                    + ",  "
+                    + row
                     + "\n"
                 )
 
@@ -234,7 +253,11 @@ if __name__ == "__main__":
             ring_finder.draw_onto(
                 AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30
             )
+            
+            RING_GRAPH = convert_to_ring_graph(ring_finder.current_rings)
         except RingFinderError as ex:
+            RING_FINDER_SUCCESSFUL = False
+        except ValueError as ex:
             RING_FINDER_SUCCESSFUL = False
 
         draw_periodic_coloured(
@@ -245,6 +268,8 @@ if __name__ == "__main__":
         FIG.savefig(f"{output_prefix}_{universe.trajectory.time}.pdf")
         plt.close(FIG)
         if RING_FINDER_SUCCESSFUL:
+            
+
             OUTPUT_FILES.write_coordinations(universe.trajectory.time, G)
             OUTPUT_FILES.write_areas(
                 universe.trajectory.time, ring_finder.current_rings
@@ -254,6 +279,13 @@ if __name__ == "__main__":
             )
             OUTPUT_FILES.write_edge_lengths(
                 universe.trajectory.time, ring_finder.analyse_edges()
+            )
+            try:
+                assortativity = nx.numeric_assortativity_coefficient(RING_GRAPH, "size")
+            except ValueError:
+                assortativity = np.nan
+            OUTPUT_FILES.write_assortativity(
+                universe.trajectory.time, assortativity
             )
 
     OUTPUT_FILES.flush()
