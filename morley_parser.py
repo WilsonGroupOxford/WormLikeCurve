@@ -7,7 +7,7 @@ Created on Wed Feb 19 10:34:20 2020
 """
 
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
 import networkx as nx

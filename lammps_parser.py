@@ -9,7 +9,7 @@ Created on Wed Oct 30 14:48:26 2019
 from collections import defaultdict
 
 import numpy as np
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Union
 
 
 def parse_molecule_topology(

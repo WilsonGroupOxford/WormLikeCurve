@@ -23,7 +23,7 @@ BOND_VAR = 1.0
 MEAN_LENGTH = 6
 STD_LENGTH = 0
 SEGMENT_LENGTH = 100.0
-DEFAULT_STICKY_FRACTION = 0.0
+DEFAULT_STICKY_FRACTION = None
 MIN_SIZE = 3
 NUM_X = 10
 NUM_Y = 10
@@ -54,14 +54,9 @@ DOUBLE_TRIANGLE_GRAPH.add_edges_from(
         (14, 15),
     ]
 )
-graphs = [LINE_GRAPH, TRIANGLE_GRAPH, DOUBLE_TRIANGLE_GRAPH]
-CIRCUMCIRCLES = [
-    WormLikeCurve(
-        graph=graph, harmonic_bond=HarmonicBond(k=1.0, length=SEGMENT_LENGTH)
-    ).circumcircle_radius()
-    for graph in graphs
-]
-weights = [1.0, 0.5, 0.5]
+
+GRAPHS = [LINE_GRAPH, TRIANGLE_GRAPH, DOUBLE_TRIANGLE_GRAPH]
+DEFAULT_WEIGHTS = [1.0, 0.5, 0.5]
 
 
 def scale_rotate_to_fit(
@@ -120,35 +115,52 @@ def scale_rotate_to_fit(
 
 
 if __name__ == "__main__":
+    weights = DEFAULT_WEIGHTS
+    sticky_fraction = DEFAULT_STICKY_FRACTION
     if len(sys.argv) == 2:
-        sticky_fraction = float(sys.argv[1])
-    else:
-        sticky_fraction = DEFAULT_STICKY_FRACTION
+        sticky_fraction = float(sys.argv[1])      
+    elif len(sys.argv) == 4:
+        weights = [float(item) for item in sys.argv[1:]]
 
-    if 0 > sticky_fraction:
-        raise RuntimeError("Sticky fraction must be positive.")
-    elif 1 < sticky_fraction:
-        raise RuntimeError("Sticky fraction must be less than 1.")
     POLYMER_COLLECTION = CurveCollection()
 
     positions_to_index = dict()
     num_added = 0
-    for i in range(NUM_X):
-        for j in range(NUM_Y):
-            # Iterate until we generate a positive size.
-            size = -1
-            while size < MIN_SIZE:
-                size = int(np.random.normal(loc=MEAN_LENGTH, scale=STD_LENGTH))
-            THIS_GRAPH = random.choices(graphs, weights=weights, k=1)[0]
+    NUM_MOLECS = NUM_X * NUM_Y
+    # Normalise the weights such that they sum to unity.
+    weights = np.array(weights) / np.sum(weights)
+    CIRCUMCIRCLES = []
+    for i, weight in enumerate(weights):
+        print(weight, weight * NUM_MOLECS, int(weight * NUM_MOLECS))
+        for poly in range(int(weight * NUM_MOLECS)):
             POLYMER_COLLECTION.append(
                 WormLikeCurve(
-                    graph=THIS_GRAPH,
+                    graph=GRAPHS[i],
                     harmonic_bond=HarmonicBond(k=1.0, length=SEGMENT_LENGTH),
                     angle_bond=AngleBond(k=100.0, angle=np.pi),
+                    sticky_fraction=sticky_fraction,
                 )
             )
-            POLYMER_COLLECTION[-1].add_sticky_sites(sticky_fraction)
-
+            CIRCUMCIRCLES.append(POLYMER_COLLECTION[-1].circumcircle_radius())
+    
+    # If we're short, pad with the most populous subtype.
+    while len(POLYMER_COLLECTION) < NUM_MOLECS:
+        most_populous = np.argmax(weights)
+        POLYMER_COLLECTION.append(
+            WormLikeCurve(
+                graph=GRAPHS[most_populous],
+                harmonic_bond=HarmonicBond(k=1.0, length=SEGMENT_LENGTH),
+                angle_bond=AngleBond(k=100.0, angle=np.pi),
+                sticky_fraction=sticky_fraction,
+            )
+        )
+        CIRCUMCIRCLES.append(POLYMER_COLLECTION[-1].circumcircle_radius())
+    
+    while len(POLYMER_COLLECTION) > NUM_MOLECS:
+        del POLYMER_COLLECTION[-1]
+        
+    random.shuffle(POLYMER_COLLECTION)
+    
     for i in range(NUM_X):
         for j in range(NUM_Y):
             new_start_pos = np.array(

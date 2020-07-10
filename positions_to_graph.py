@@ -24,7 +24,7 @@ from clustering import (
 )
 from lammps_parser import parse_molecule_topology
 from rings.periodic_ring_finder import PeriodicRingFinder
-from rings.ring_finder import RingFinder
+from rings.ring_finder import RingFinder, RingFinderError
 from morley_parser import draw_periodic_coloured
 
 LJ_BOND = 137.5
@@ -213,7 +213,7 @@ if __name__ == "__main__":
         # Sort the list of clusters into a consistent list so
         # we can index them.
         CLUSTER_POSITIONS = find_cluster_centres(
-            ALL_CLUSTERS, ALL_ATOMS.positions, cutoff=10.0
+            ALL_CLUSTERS, ALL_ATOMS.positions, cutoff=50.0
         )
         G = connect_clusters(in_graph=TOTAL_GRAPH, clusters=ALL_CLUSTERS)
         colours = dict()
@@ -234,7 +234,7 @@ if __name__ == "__main__":
             ring_finder.draw_onto(
                 AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30
             )
-        except ValueError as ex:
+        except RingFinderError as ex:
             RING_FINDER_SUCCESSFUL = False
 
         draw_periodic_coloured(
