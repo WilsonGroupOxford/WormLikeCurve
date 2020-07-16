@@ -58,6 +58,23 @@ DOUBLE_TRIANGLE_GRAPH.add_edges_from(
 GRAPHS = [LINE_GRAPH, TRIANGLE_GRAPH, DOUBLE_TRIANGLE_GRAPH]
 DEFAULT_WEIGHTS = [1.0, 0.5, 0.5]
 
+def get_neighbours_of(x, y, num_x, num_y):
+    for offset_x, offset_y in [(-1, 1), (0, 1), (1, 1),
+                               (-1, 0),         (1, 0),
+                               (-1, -1),(0, -1), (1, -1)]:
+        new_x = x + offset_x
+        if new_x < 0:
+            new_x += num_x
+        elif new_x >= num_x:
+            new_x -= num_x
+
+        new_y = y + offset_y
+        if new_y < 0:
+            new_y += num_y
+        elif new_y >= num_y:
+            new_y -= num_y           
+        yield new_x, new_y
+
 
 def scale_rotate_to_fit(
     polymer_collection, iteration_scale: float = 0.1, rotation_size: float = 0.1 * np.pi
@@ -76,13 +93,25 @@ def scale_rotate_to_fit(
 
     # Reduce this from an O(N^2) horror each time by remembering which polys don't collide.
     # as they will continue not colliding until we move one of them.
-    collider_list = np.ones(
+    collider_list = np.zeros(
         [len(polymer_collection), len(polymer_collection)], dtype=bool
     )
+    
+    # Polygons can only collide with their direct neighbours.
+    # or, failing that, if they collide with other molecules we'll sort
+    # that out when we sort out the neighbours.
+    for x in range(NUM_X):
+        for y in range(NUM_Y):
+            idx = (x * NUM_X) + y
+            for neigh_x, neigh_y in get_neighbours_of(x, y, NUM_X, NUM_Y):
+                neigh_idx = (neigh_x * NUM_X) + neigh_y
+                collider_list[idx, neigh_idx] = True
+                collider_list[neigh_idx, idx] = True
+    periodic_box = polymer_collection.calculate_periodic_box()
     while np.any(collider_list):
         for poly_idx, other_poly_idx in np.argwhere(collider_list):
             does_collide = polymer_collection[poly_idx].collides_with(
-                polymer_collection[other_poly_idx]
+                polymer_collection[other_poly_idx], periodic_box = periodic_box,
             )
             if does_collide:
                 # Two are colliding. Randomly rotate one of them by a small amount.
@@ -90,9 +119,13 @@ def scale_rotate_to_fit(
                 polymer_collection[poly_to_rotate].rotate(rotation_size)
                 amount_rotated[poly_to_rotate] += np.abs(rotation_size)
 
-                # This could now collide with anything!
-                collider_list[poly_to_rotate, :] = True
-                collider_list[:, poly_to_rotate] = True
+                # This could now collide with its neighbours, so find its x, y pair.
+                poly_y = poly_to_rotate % NUM_Y
+                poly_x = (poly_to_rotate - y) // NUM_X
+                for neigh_x, neigh_y in get_neighbours_of(poly_x, poly_y, NUM_X, NUM_Y):
+                    neigh_idx = (neigh_x * NUM_X) + neigh_y
+                    collider_list[poly_to_rotate, neigh_idx] = True
+                    collider_list[neigh_idx, poly_to_rotate] = True
                 # ... except itself, of course.
                 collider_list[poly_to_rotate, poly_to_rotate] = False
             else:
@@ -109,6 +142,7 @@ def scale_rotate_to_fit(
                 poly.recentre()
             # Reset the rotations so we start again.
             amount_rotated = np.zeros([len(polymer_collection)], dtype=float)
+            periodic_box = polymer_collection.calculate_periodic_box()
 
         print(len(np.argwhere(collider_list)) / 2, " collisions to resolve.")
     return polymer_collection

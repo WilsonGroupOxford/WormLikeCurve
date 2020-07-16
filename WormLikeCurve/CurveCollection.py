@@ -172,6 +172,13 @@ class CurveCollection:
     def box_to_origin(self):
         min_x, min_y = np.min(self.positions, axis=0)
         self.translate(-np.array([min_x, min_y], dtype=float))
+        
+    def calculate_periodic_box(self):
+        min_x, min_y = np.min(self.positions, axis=0)
+        max_x, max_y = np.max(self.positions, axis=0)
+        min_corner = 0.0
+        max_corner = (max(max_x, max_y) * 1.1) + 0.1
+        return np.array([[min_corner, max_corner], [min_corner, max_corner]])
 
     def to_lammps(self, filename: str, periodic_box=None, mass=14.02):
         # Make the bottom left corner the origin

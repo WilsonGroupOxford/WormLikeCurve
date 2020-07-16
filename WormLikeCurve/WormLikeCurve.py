@@ -15,6 +15,8 @@ import matplotlib.patches as mpatches
 from matplotlib.collections import LineCollection
 import matplotlib.patheffects as path_effects
 
+from typing import Optional 
+
 try:
     from WormLikeCurve.Bonds import AngleBond, HarmonicBond
     from WormLikeCurve.CurveCollection import CurveCollection
@@ -45,6 +47,7 @@ class WormLikeCurve:
         graph: nx.Graph = None,
         start_pos=np.array([0, 0]),
         kbt: float = 1.0,
+        sticky_fraction: Optional[float] = None,
     ):
         """
         Initialise the polymer object.
@@ -80,6 +83,8 @@ class WormLikeCurve:
         self._graph_to_vectors(graph)
         # Don't bother calculating the positions yet, do it
         # when they're necessary.
+        if sticky_fraction is not None:
+            self.add_sticky_sites(sticky_sites)
 
     def _graph_to_vectors(self, graph: nx.Graph):
         try:
