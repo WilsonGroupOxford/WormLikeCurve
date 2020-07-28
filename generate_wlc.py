@@ -25,8 +25,8 @@ STD_LENGTH = 0
 SEGMENT_LENGTH = 100.0
 DEFAULT_STICKY_FRACTION = None
 MIN_SIZE = 3
-NUM_X = 10
-NUM_Y = 10
+NUM_X = 20
+NUM_Y = 20
 
 LINE_GRAPH = nx.path_graph(MEAN_LENGTH)
 TRIANGLE_GRAPH = nx.Graph()
@@ -87,6 +87,9 @@ def scale_rotate_to_fit(
     centre of mass to see if that helps. 
     The collision detection is O(N^2), so be careful for large polymer collections!
     Mutates the polymer collection that is input.
+    :param polymer_collection: A list of polymer objects
+    :param iteration_scale: increase the linear dimensions by (1+iteration_scale) each scaling step
+    :param rotation_size: rotate each polymer by rotation_size radians to resolve collisions. A smaller step resolves collisions more precisely, but is slower.
     """
     any_colliders = True
     amount_rotated = np.zeros([len(polymer_collection)], dtype=float)
@@ -108,7 +111,9 @@ def scale_rotate_to_fit(
                 collider_list[idx, neigh_idx] = True
                 collider_list[neigh_idx, idx] = True
     periodic_box = polymer_collection.calculate_periodic_box()
+    num_iterations = 0
     while np.any(collider_list):
+        print(f"After {num_iterations} iterations, there are {np.sum(collider_list) / 2} collisions to resolve.")
         for poly_idx, other_poly_idx in np.argwhere(collider_list):
             does_collide = polymer_collection[poly_idx].collides_with(
                 polymer_collection[other_poly_idx], periodic_box = periodic_box,
@@ -144,7 +149,8 @@ def scale_rotate_to_fit(
             amount_rotated = np.zeros([len(polymer_collection)], dtype=float)
             periodic_box = polymer_collection.calculate_periodic_box()
 
-        print(len(np.argwhere(collider_list)) / 2, " collisions to resolve.")
+        num_iterations += 1
+        
     return polymer_collection
 
 
@@ -165,7 +171,7 @@ if __name__ == "__main__":
     weights = np.array(weights) / np.sum(weights)
     CIRCUMCIRCLES = []
     for i, weight in enumerate(weights):
-        print(weight, weight * NUM_MOLECS, int(weight * NUM_MOLECS))
+        # print(weight, weight * NUM_MOLECS, int(weight * NUM_MOLECS))
         for poly in range(int(weight * NUM_MOLECS)):
             POLYMER_COLLECTION.append(
                 WormLikeCurve(
@@ -190,6 +196,7 @@ if __name__ == "__main__":
         )
         CIRCUMCIRCLES.append(POLYMER_COLLECTION[-1].circumcircle_radius())
     
+    # Remove any polymers that are in excess.
     while len(POLYMER_COLLECTION) > NUM_MOLECS:
         del POLYMER_COLLECTION[-1]
         
@@ -206,20 +213,21 @@ if __name__ == "__main__":
 
     scale_rotate_to_fit(POLYMER_COLLECTION)
 
-    FIG, AX = plt.subplots()
-    AX.axis("equal")
+    #FIG, AX = plt.subplots()
+    #AX.axis("equal")
 
     for POLYMER in POLYMER_COLLECTION:
         POLYMER.rotate(np.random.uniform(0, 2 * np.pi))
-        AX.add_artist(
-            patches.Circle(
-                POLYMER.centroid,
-                radius=POLYMER.circumcircle_radius(),
-                edgecolor="black",
-                fill=False,
-            )
-        )
-    POLYMER_COLLECTION.plot_onto(AX, label_nodes=False, fit_edges=True)
+    #    AX.add_artist(
+    #        patches.Circle(
+    #            POLYMER.centroid,
+    #            radius=POLYMER.circumcircle_radius(),
+    #            edgecolor="black",
+    #            fill=False,
+    #        )
+    #    )
+    #POLYMER_COLLECTION.plot_onto(AX, label_nodes=False, fit_edges=True)
     print("Writing to polymer_total.data")
     POLYMER_COLLECTION.to_lammps("polymer_total.data", mass=0.5 / MEAN_LENGTH)
-    plt.show()
+    #FIG.savefig("./initial.pdf")
+    # plt.show()
