@@ -58,10 +58,18 @@ DOUBLE_TRIANGLE_GRAPH.add_edges_from(
 GRAPHS = [LINE_GRAPH, TRIANGLE_GRAPH, DOUBLE_TRIANGLE_GRAPH]
 DEFAULT_WEIGHTS = [1.0, 0.5, 0.5]
 
+
 def get_neighbours_of(x, y, num_x, num_y):
-    for offset_x, offset_y in [(-1, 1), (0, 1), (1, 1),
-                               (-1, 0),         (1, 0),
-                               (-1, -1),(0, -1), (1, -1)]:
+    for offset_x, offset_y in [
+        (-1, 1),
+        (0, 1),
+        (1, 1),
+        (-1, 0),
+        (1, 0),
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+    ]:
         new_x = x + offset_x
         if new_x < 0:
             new_x += num_x
@@ -72,7 +80,7 @@ def get_neighbours_of(x, y, num_x, num_y):
         if new_y < 0:
             new_y += num_y
         elif new_y >= num_y:
-            new_y -= num_y           
+            new_y -= num_y
         yield new_x, new_y
 
 
@@ -99,7 +107,7 @@ def scale_rotate_to_fit(
     collider_list = np.zeros(
         [len(polymer_collection), len(polymer_collection)], dtype=bool
     )
-    
+
     # Polygons can only collide with their direct neighbours.
     # or, failing that, if they collide with other molecules we'll sort
     # that out when we sort out the neighbours.
@@ -113,10 +121,12 @@ def scale_rotate_to_fit(
     periodic_box = polymer_collection.calculate_periodic_box()
     num_iterations = 0
     while np.any(collider_list):
-        print(f"After {num_iterations} iterations, there are {np.sum(collider_list) / 2} collisions to resolve.")
+        print(
+            f"After {num_iterations} iterations, there are {np.sum(collider_list) / 2} collisions to resolve."
+        )
         for poly_idx, other_poly_idx in np.argwhere(collider_list):
             does_collide = polymer_collection[poly_idx].collides_with(
-                polymer_collection[other_poly_idx], periodic_box = periodic_box,
+                polymer_collection[other_poly_idx], periodic_box=periodic_box,
             )
             if does_collide:
                 # Two are colliding. Randomly rotate one of them by a small amount.
@@ -150,7 +160,7 @@ def scale_rotate_to_fit(
             periodic_box = polymer_collection.calculate_periodic_box()
 
         num_iterations += 1
-        
+
     return polymer_collection
 
 
@@ -158,7 +168,7 @@ if __name__ == "__main__":
     weights = DEFAULT_WEIGHTS
     sticky_fraction = DEFAULT_STICKY_FRACTION
     if len(sys.argv) == 2:
-        sticky_fraction = float(sys.argv[1])      
+        sticky_fraction = float(sys.argv[1])
     elif len(sys.argv) == 4:
         weights = [float(item) for item in sys.argv[1:]]
 
@@ -182,7 +192,7 @@ if __name__ == "__main__":
                 )
             )
             CIRCUMCIRCLES.append(POLYMER_COLLECTION[-1].circumcircle_radius())
-    
+
     # If we're short, pad with the most populous subtype.
     while len(POLYMER_COLLECTION) < NUM_MOLECS:
         most_populous = np.argmax(weights)
@@ -195,13 +205,13 @@ if __name__ == "__main__":
             )
         )
         CIRCUMCIRCLES.append(POLYMER_COLLECTION[-1].circumcircle_radius())
-    
+
     # Remove any polymers that are in excess.
     while len(POLYMER_COLLECTION) > NUM_MOLECS:
         del POLYMER_COLLECTION[-1]
-        
+
     random.shuffle(POLYMER_COLLECTION)
-    
+
     for i in range(NUM_X):
         for j in range(NUM_Y):
             new_start_pos = np.array(
@@ -213,8 +223,8 @@ if __name__ == "__main__":
 
     scale_rotate_to_fit(POLYMER_COLLECTION)
 
-    #FIG, AX = plt.subplots()
-    #AX.axis("equal")
+    # FIG, AX = plt.subplots()
+    # AX.axis("equal")
 
     for POLYMER in POLYMER_COLLECTION:
         POLYMER.rotate(np.random.uniform(0, 2 * np.pi))
@@ -226,8 +236,8 @@ if __name__ == "__main__":
     #            fill=False,
     #        )
     #    )
-    #POLYMER_COLLECTION.plot_onto(AX, label_nodes=False, fit_edges=True)
+    # POLYMER_COLLECTION.plot_onto(AX, label_nodes=False, fit_edges=True)
     print("Writing to polymer_total.data")
     POLYMER_COLLECTION.to_lammps("polymer_total.data", mass=0.5 / MEAN_LENGTH)
-    #FIG.savefig("./initial.pdf")
+    # FIG.savefig("./initial.pdf")
     # plt.show()

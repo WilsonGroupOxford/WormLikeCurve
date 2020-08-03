@@ -26,6 +26,7 @@ from lammps_parser import parse_molecule_topology
 from rings.periodic_ring_finder import PeriodicRingFinder
 from rings.ring_finder import RingFinder, RingFinderError, convert_to_ring_graph
 from morley_parser import draw_periodic_coloured
+from nodeme import NodeME
 
 LJ_BOND = 137.5
 FIND_BODIES = True
@@ -49,12 +50,20 @@ class AnalysisFiles:
         self.coordinations_prefixes = []
         self.coordinations_data = []
         self.coordinations_file = f"{prefix}_coordinations.dat"
-        
+
         self.assortativity_prefixes = []
         self.assortativity_data = []
         self.assortativity_file = f"{prefix}_assortativity.dat"
 
-    def write_coordinations(self, prefix, graph):
+        self.maxent_prefixes = []
+        self.maxent_data = []
+        self.maxent_file = f"{prefix}_maxent.dat"
+
+        self.regularity_prefixes = []
+        self.regularity_data = []
+        self.regularity_file = f"{prefix}_regularity.dat"
+
+    def write_coordinations(self, prefix: str, graph: nx.Graph):
         """
         Buffer coordination data for later writing.
 
@@ -72,7 +81,7 @@ class AnalysisFiles:
         self.coordinations_data.append(coordination_counter)
         self.coordinations_prefixes.append(str(prefix))
 
-    def write_areas(self, prefix, ring_list):
+    def write_areas(self, prefix: str, ring_list):
         """
         Buffer sorted area data for later writing
         ----------
@@ -95,12 +104,25 @@ class AnalysisFiles:
     def write_assortativity(self, prefix, assort):
         self.assortativity_data.append(str(assort))
         self.assortativity_prefixes.append(str(prefix))
-        
-        
+
     def write_sizes(self, prefix, ring_list):
         ring_sizes = Counter(len(ring) for ring in ring_list)
         self.rings_data.append(ring_sizes)
         self.rings_prefixes.append(str(prefix))
+
+    def write_maximum_entropy(self, prefix, ring_list):
+        ring_sizes = Counter(len(ring) for ring in ring_list)
+        modal_ring_size, number_modal = ring_sizes.most_common(1)[0]
+        me = NodeME(k_mean=modal_ring_size)(
+            target_pk=number_modal / len(ring_list), k=modal_ring_size
+        )
+        print(me)
+        self.maxent_data.append(me)
+        self.maxent_prefixes.append(str(prefix))
+
+    def write_regularity(self, prefix, ring_list):
+        self.regularity_data.append([ring.regularity_metric() for ring in ring_list])
+        self.regularity_prefixes.append(str(prefix))
 
     def flush(self):
         # Write out coordinations
@@ -159,14 +181,31 @@ class AnalysisFiles:
                     + ", ".join(f"{item:.2f}" for item in row)
                     + "\n"
                 )
-                
+
         with open(self.assortativity_file, "w") as fi:
             fi.write("# Timestep, Ring Assortativity\n")
             for i, row in enumerate(self.assortativity_data):
+                fi.write(self.assortativity_prefixes[i] + ",  " + row + "\n")
+
+        with open(self.regularity_file, "w") as fi:
+            fi.write("# Timestep, Regularities...\n")
+            for i, row in enumerate(self.regularity_data):
                 fi.write(
-                    self.assortativity_prefixes[i]
+                    self.regularity_prefixes[i]
                     + ",  "
-                    + row
+                    + ", ".join(f"{item:.2f}" for item in row)
+                    + "\n"
+                )
+
+        with open(self.maxent_file, "w") as fi:
+            fi.write(
+                "# Timestep, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20\n"
+            )
+            for i, row in enumerate(self.maxent_data):
+                fi.write(
+                    self.maxent_prefixes[i]
+                    + ",  "
+                    + ", ".join(f"{item:.2f}" for item in row)
                     + "\n"
                 )
 
@@ -253,7 +292,7 @@ if __name__ == "__main__":
             ring_finder.draw_onto(
                 AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30
             )
-            
+
             RING_GRAPH = convert_to_ring_graph(ring_finder.current_rings)
         except RingFinderError as ex:
             RING_FINDER_SUCCESSFUL = False
@@ -268,13 +307,19 @@ if __name__ == "__main__":
         FIG.savefig(f"{output_prefix}_{universe.trajectory.time}.pdf")
         plt.close(FIG)
         if RING_FINDER_SUCCESSFUL:
-            
 
             OUTPUT_FILES.write_coordinations(universe.trajectory.time, G)
             OUTPUT_FILES.write_areas(
                 universe.trajectory.time, ring_finder.current_rings
             )
             OUTPUT_FILES.write_sizes(
+                universe.trajectory.time, ring_finder.current_rings
+            )
+            OUTPUT_FILES.write_regularities(
+                universe.trajectory.time, ring_finder.current_rings
+            )
+
+            OUTPUT_FILES.write_maximum_entropy(
                 universe.trajectory.time, ring_finder.current_rings
             )
             OUTPUT_FILES.write_edge_lengths(
@@ -284,8 +329,6 @@ if __name__ == "__main__":
                 assortativity = nx.numeric_assortativity_coefficient(RING_GRAPH, "size")
             except ValueError:
                 assortativity = np.nan
-            OUTPUT_FILES.write_assortativity(
-                universe.trajectory.time, assortativity
-            )
+            OUTPUT_FILES.write_assortativity(universe.trajectory.time, assortativity)
 
     OUTPUT_FILES.flush()
