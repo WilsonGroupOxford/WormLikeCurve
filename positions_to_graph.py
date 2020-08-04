@@ -117,7 +117,10 @@ class AnalysisFiles:
             target_pk=number_modal / len(ring_list), k=modal_ring_size
         )
         print(me)
-        self.maxent_data.append(me)
+        if me is not None:
+            self.maxent_data.append(me)
+        else:
+            self.maxent_data.append(np.array([np.nan for _ in range(3, 20)]))
         self.maxent_prefixes.append(str(prefix))
 
     def write_regularity(self, prefix, ring_list):
@@ -315,7 +318,7 @@ if __name__ == "__main__":
             OUTPUT_FILES.write_sizes(
                 universe.trajectory.time, ring_finder.current_rings
             )
-            OUTPUT_FILES.write_regularities(
+            OUTPUT_FILES.write_regularity(
                 universe.trajectory.time, ring_finder.current_rings
             )
 
