@@ -46,11 +46,10 @@ def find_lj_pairs(positions, ids, cutoff: float, cell=None):
     distances = scipy.spatial.distance.pdist(positions)
     distances = scipy.spatial.distance.squareform(distances)
     if cell is not None:
-        assert cell.shape == (3, 2)
+        assert cell.shape == (3, 2) or cell.shape == (2, 2)
 
         x_mic = np.abs(cell[0, 1] - cell[0, 0]) / 2
         y_mic = np.abs(cell[1, 1] - cell[1, 0]) / 2
-
         # Precalculate some cell offsets to save time.
         min_mic = min([x_mic, y_mic])
         outside_mic = np.argwhere(distances > min_mic)

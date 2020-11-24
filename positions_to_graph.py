@@ -116,7 +116,6 @@ class AnalysisFiles:
         me = NodeME(k_mean=modal_ring_size)(
             target_pk=number_modal / len(ring_list), k=modal_ring_size
         )
-        print(me)
         if me is not None:
             self.maxent_data.append(me)
         else:
@@ -225,26 +224,6 @@ if __name__ == "__main__":
         topology_file = "./Data/MSHP_0.05_2.data"
         output_prefix = "./outputs/MSHP_0.5_2"
 
-    with open(position_file) as fi:
-        to_read = 0
-        box_data = []
-        for line in fi.readlines():
-            if to_read:
-                box_data.append([float(item) for item in line.split()])
-                to_read -= 1
-            if "ITEM: BOX BOUNDS pp pp pp" in line:
-                to_read = 3
-
-    cell = np.array(
-        [
-            [box_data[0][0], box_data[0][1]],
-            [box_data[1][0], box_data[1][1]],
-            [box_data[2][0], box_data[2][1]],
-        ]
-    )
-    x_size = abs(box_data[0][1] - box_data[0][0])
-    y_size = abs(box_data[1][0] - box_data[1][1])
-
     universe = mda.Universe(position_file, topology=topology_file, format="LAMMPSDUMP")
     ATOMS, MOLECS, BONDS = parse_molecule_topology(topology_file)
     TOTAL_GRAPH = nx.Graph()
@@ -258,12 +237,14 @@ if __name__ == "__main__":
     OUTPUT_FILES = AnalysisFiles(output_prefix)
     for timestep in universe.trajectory[::25]:
         print(timestep)
+        PERIODIC_BOX = np.array([[0, timestep.dimensions[0]], [0, timestep.dimensions[1]]])
         # Find the terminal atoms, and group them into clusters.
         ALL_ATOMS = universe.select_atoms("all")
-        ALL_ATOMS.positions *= 1.0 / np.array([x_size, y_size, 1.0])
+        ALL_ATOMS.positions *= 1.0 / np.array([timestep.dimensions[0], timestep.dimensions[1], 1.0])
+        ALL_ATOMS.positions -= np.min(ALL_ATOMS.positions, axis=0)
         TERMINALS = universe.select_atoms("type 2 or type 3")
         TERMINAL_PAIRS = find_lj_pairs(
-            TERMINALS.positions, TERMINALS.ids, LJ_BOND, cell=cell
+            TERMINALS.positions, TERMINALS.ids, LJ_BOND, cell=PERIODIC_BOX
         )
         TERMINAL_CLUSTERS = find_lj_clusters(TERMINAL_PAIRS)
 
@@ -285,12 +266,12 @@ if __name__ == "__main__":
         # nx.draw(G, pos=CLUSTER_POSITIONS)
         nx.set_node_attributes(G, colours, name="color")
         FIG, AX = plt.subplots()
-        AX.set_xlim(box_data[0][0] * 1.1, box_data[0][1] * 1.1)
-        AX.set_ylim(box_data[1][0] * 1.1, box_data[1][1] * 1.1)
+        AX.set_xlim(0, timestep.dimensions[0])
+        AX.set_ylim(0, timestep.dimensions[1])
         RING_FINDER_SUCCESSFUL = True
         try:
             ring_finder = PeriodicRingFinder(
-                G, CLUSTER_POSITIONS, np.array([x_size, y_size])
+                G, CLUSTER_POSITIONS, PERIODIC_BOX
             )
             ring_finder.draw_onto(
                 AX, cmap_name="tab20b", min_ring_size=4, max_ring_size=30
@@ -298,12 +279,14 @@ if __name__ == "__main__":
 
             RING_GRAPH = convert_to_ring_graph(ring_finder.current_rings)
         except RingFinderError as ex:
+            print("Failed with code: ", ex)
             RING_FINDER_SUCCESSFUL = False
         except ValueError as ex:
+            print("Failed with value code: ", ex)
             RING_FINDER_SUCCESSFUL = False
 
         draw_periodic_coloured(
-            G, pos=CLUSTER_POSITIONS, periodic_box=cell[:2, :], ax=AX
+            G, pos=CLUSTER_POSITIONS, periodic_box=PERIODIC_BOX, ax=AX
         )
 
         AX.axis("off")
