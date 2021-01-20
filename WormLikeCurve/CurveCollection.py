@@ -215,7 +215,10 @@ class CurveCollection:
                 if periodic_box.shape[0] > 2:
                     fi.write(f"\t {periodic_box[2,0]:.3f} {periodic_box[2,1]:.3f} \t zlo zhi\n\n")
                 else:
-                    fi.write(f"\t {-max(periodic_box[1,0], periodic_box[0,0])/2.0}, {-max(periodic_box[1,0], periodic_box[0,0])/2.0}\n") 
+                    x_size = abs(periodic_box[0, 1] - periodic_box[0, 0])
+                    y_size = abs(periodic_box[1, 1] - periodic_box[1, 0])
+                    z_fit = max(x_size, y_size) / 2.0
+                    fi.write(f"\t {-z_fit} {z_fit} zlo zhi\n") 
             # Masses
             fi.write("Masses\n\n")
             for atom_type in atom_types:
