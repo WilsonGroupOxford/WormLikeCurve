@@ -8,26 +8,21 @@ Created on Thu Feb  6 14:01:29 2020
 
 import random
 import sys
-from collections import defaultdict
-from typing import Dict
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
 from morley_parser import (
-    COLOUR_LUT,
     CORRESPONDING_COLOURS,
     colour_graph,
-    draw_periodic_coloured,
-    load_morley,
 )
 from WormLikeCurve.Bonds import AngleBond, HarmonicBond
 from WormLikeCurve.CurveCollection import CurveCollection
 from WormLikeCurve.WormLikeCurve import WormLikeCurve
 
 
-def calculate_edge_factor(angle: float) -> float:
+def calculate_edge_factor(num_sides: int, side_length: float = 2 ** (1 / 6)) -> float:
     """
     Calculate the gap from the central point of a shape to its vertex.
 
@@ -37,33 +32,53 @@ def calculate_edge_factor(angle: float) -> float:
      /.    <- 2^(1/6)
     Assumes the side lengths of the regular shape are the minima
     of a Lennard-Jones potential with sigma = 1
-    : param angle : 
-        The interior angle of the regular shape
+    Parameters
+    ----------
+    num_sides
+        the number of sides of this shape
+    side_length
+        the length of one side of this shape
 
-    :return: edge_factor, a fraction of the total length that the gap here should be.
+    Returns
+    -------
+    edge_factor
+        a fraction of the total length that the gap here should be.
 
     """
-    return 2 ** (1 / 6) / (2 * np.cos((np.pi - angle) / 2.0))
-
-
-EDGE_FACTORS = {i: calculate_edge_factor(2 * np.pi / i) for i in range(2, 10)}
+    if num_sides == 0 or num_sides == 1:
+        return 0.0
+    return side_length / (2.0 * np.sin(np.pi / num_sides))
 
 
 def graph_to_molecules(
-    graph: nx.Graph, pos, edge_factors=dict(), num_segments: int = 5, periodic_box=None
+    graph: nx.Graph,
+    pos,
+    edge_factors=calculate_edge_factor,
+    num_segments: int = 5,
+    periodic_box=None,
 ):
     """
     Convert a graph to a set of molecules.
 
-    TODO: fix periodicity by changing the starting
-    position. hope LAMMPS sorts the rest
-    of it out!
-    :param edge_factors: a dictionary featuring the edge lengths for ends of given coordination
+    Parameters
+    ----------
+    graph
+        the graph to convert to molecules
+    edge_factors
+        A function that calculates how much of the molecule should be set aside
+        for LJ interactions
+    num_segments
+        The number of segments within each molecule
+    periodic_box
+        Is this graph periodic? If so, what's the repeat?
+    Returns
+    -------
+    curves
+        A curvecollection where each molecule occupies the same length it did in the graph. Needs rescaling.
     """
     molecules = []
     for u, v in graph.edges():
         gradient = pos[v] - pos[u]
-
         # Calculate the edge factors generally, assuming that the
         # nodes are a regular polyhedron with n sides each of
         # length 2^(1/6), where n is the coordination number
@@ -73,13 +88,12 @@ def graph_to_molecules(
         # (which we do elsewhere)
 
         total_length = (
-            num_segments + edge_factors[coordination_u] + edge_factors[coordination_v]
+            num_segments + edge_factors(coordination_u) + edge_factors(coordination_v)
         )
-
         # Now normalise to the fraction of the molecule that the edge
         # pieces represent.
-        edge_factor_u = edge_factors[coordination_u] / total_length
-        edge_factor_v = edge_factors[coordination_v] / total_length
+        edge_factor_u = edge_factors(coordination_u) / total_length
+        edge_factor_v = edge_factors(coordination_v) / total_length
         has_changed = False
         if periodic_box is not None:
             # If we're in a periodic box, we have to apply the
@@ -107,17 +121,16 @@ def graph_to_molecules(
 
         if has_changed:
             gradient = new_pos_v - pos[u]
-        normalised_gradient = gradient / np.sqrt(np.dot(gradient, gradient))
-        angle = np.arccos(np.dot(normalised_gradient, np.array([1.0, 0.0])))
-        if gradient[1] < 0:
-            angle = -angle
+
+        angle = np.arctan2(gradient[1], gradient[0])
+
         starting_point = pos[u] + (edge_factor_u * gradient)
         segment_length = (1 - edge_factor_u - edge_factor_v) * gradient / num_segments
         segment_length = np.hypot(*segment_length)
         harmonic_bond = HarmonicBond(k=1, length=segment_length)
         angle_bond = AngleBond(k=100, angle=np.pi)
         curve = WormLikeCurve(
-            num_segments=num_segments,
+            num_segments=num_segments + 1,
             harmonic_bond=harmonic_bond,
             angle_bond=angle_bond,
             start_pos=starting_point,
@@ -136,6 +149,7 @@ def graph_to_molecules(
             random_u_choice = random.choice(u_colour)
             curve.atom_types[0] = random_u_choice
             curve.atom_types[-1] = CORRESPONDING_COLOURS[random_u_choice]
+
         curve.start_pos = starting_point
         curve.vectors = np.array([[segment_length, angle] for i in range(num_segments)])
         curve.vectors_to_positions()
@@ -248,13 +262,17 @@ def construct_hex_lattice(num_nodes: int, bond_length: float = 1.0) -> CurveColl
     hex_graph = hexagonal_lattice_graph(num_nodes, num_nodes, periodic=True)
     pos = dict(nx.get_node_attributes(hex_graph, "pos"))
     for key, val in pos.items():
-        pos[key] = np.array(val)
-    periodic_box = np.array([[0.0, 1.5 * num_nodes], [0.0, num_nodes * np.sqrt(3)]])
-    hex_graph = colour_graph(hex_graph)
-    curves = graph_to_molecules(
-        hex_graph, pos, periodic_box=periodic_box, edge_factors=EDGE_FACTORS
+        pos[key] = np.asarray(val)
+    periodic_box = np.array(
+        [
+            [0.0, 1.5 * num_nodes],
+            [0.0, num_nodes * np.sqrt(3)],
+            [-0.5 * num_nodes * np.sqrt(3), 0.5 * num_nodes * np.sqrt(3)],
+        ]
     )
-    scale_factor = bond_length / curves[0].vectors[0, 0]
+    hex_graph = colour_graph(hex_graph)
+    curves = graph_to_molecules(hex_graph, pos, periodic_box=periodic_box)
+    scale_factor = bond_length / np.mean(curves[0].vectors[:, 0])
     curves.rescale(scale_factor)
     for key, val in pos.items():
         pos[key] *= scale_factor
@@ -273,7 +291,8 @@ def construct_alt_sq_lattice(
     :return: a CurveCollection of wormlike curves
     """
     periodic_box = np.array(
-        [[0.0, num_squares * 2], [0.0, num_squares * 2]], dtype=float
+        [[0.0, num_squares * 2], [0.0, num_squares * 2], [-num_squares, num_squares]],
+        dtype=float,
     )
     G = nx.Graph()
     pos = dict()
@@ -304,9 +323,7 @@ def construct_alt_sq_lattice(
         G.add_edge((0, 2 * index), ((2 * num_squares) - 1, 2 * index))
         G.add_edge((2 * index, 0), (2 * index, (2 * num_squares) - 1))
     G = colour_graph(G)
-    curves = graph_to_molecules(
-        G, pos, periodic_box=periodic_box, edge_factors=EDGE_FACTORS, num_segments=5
-    )
+    curves = graph_to_molecules(G, pos, periodic_box=periodic_box, num_segments=5)
 
     scale_factor = bond_length / curves[0].vectors[0, 0]
     curves.rescale(scale_factor)
@@ -345,51 +362,18 @@ if __name__ == "__main__":
                 [float(sys.argv[3]), float(sys.argv[4])],
             ]
         )
-        MORLEY_PREFIX = sys.argv[6]
+        MORLEY_PREFIX = sys.argv[5]
     FIG, AX = plt.subplots()
-    CURVES, PERIODIC_BOX = construct_hex_lattice(6)
+    AX.axis("equal")
+
+    CURVES, PERIODIC_BOX = construct_hex_lattice(12, bond_length=50)
     kwarg_list = [
-        {"end_size": 0.8, "linewidths": 0, "colors": "black"}
+        {"end_size": 0.8 * 50, "linewidths": 0, "colors": "black"}
         for _ in range(len(CURVES))
     ]
-    CURVES.plot_onto(AX, kwarg_list)
+    CURVES.plot_onto(AX, kwarg_list, label_nodes=False)
     AX.set_axis_off()
-    FIG.savefig("./hex-graph.pdf")
-    plt.close(FIG)
 
-    FIG, AX = plt.subplots()
-    GRID_CURVES, GRID_PERIODIC_BOX = construct_alt_sq_lattice(
-        6, bond_length=SCALE_FACTOR
-    )
-    if TRANSFORMATION_MATRIX is not None:
-        GRID_CURVES.apply_transformation_matrix(TRANSFORMATION_MATRIX)
-    kwarg_list = [
-        {"end_size": 0.8, "linewidths": 0, "colors": "black"}
-        for _ in range(len(GRID_CURVES))
-    ]
-    GRID_CURVES.plot_onto(AX, kwarg_list)
-    AX.set_axis_off()
-    FIG.savefig("./altsq-graph.pdf")
-    GRID_CURVES.to_lammps("./polymer_total.data", periodic_box=GRID_PERIODIC_BOX)
-    MORLEY_POS, MORLEY_GRAPH, MORLEY_BOX = load_morley(MORLEY_PREFIX)
-
-    FIG, AX = plt.subplots()
-    draw_periodic_coloured(MORLEY_GRAPH, MORLEY_POS, MORLEY_BOX, ax=AX)
-    FIG.savefig("./morley_coloured.pdf")
+    plt.savefig("./initial.pdf")
     plt.close(FIG)
-    MORLEY_CURVES = graph_to_molecules(
-        MORLEY_GRAPH, MORLEY_POS, periodic_box=MORLEY_BOX, edge_factors=EDGE_FACTORS
-    )
-    scale_factor = SCALE_FACTOR / MORLEY_CURVES[0].vectors[0, 0]
-    MORLEY_CURVES.rescale(scale_factor)
-    if TRANSFORMATION_MATRIX is not None:
-        MORLEY_CURVES.apply_transformation_matrix(TRANSFORMATION_MATRIX)
-    FIG, AX = plt.subplots()
-    kwarg_list = [
-        {"end_size": 0.8, "linewidths": 0, "colors": "black"}
-        for _ in range(len(MORLEY_CURVES))
-    ]
-    MORLEY_CURVES.plot_onto(AX, kwarg_list)
-    AX.set_axis_off()
-    FIG.savefig("morley_molecs.pdf")
-    MORLEY_CURVES.to_lammps("./polymer_total.data", periodic_box=MORLEY_BOX)
+    CURVES.to_lammps("./polymer_total.data", periodic_box=PERIODIC_BOX, mass=0.5 / 6)
