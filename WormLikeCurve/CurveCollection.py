@@ -172,6 +172,13 @@ class CurveCollection:
     def box_to_origin(self):
         min_x, min_y = np.min(self.positions, axis=0)
         self.translate(-np.array([min_x, min_y], dtype=float))
+        
+    def calculate_periodic_box(self):
+        min_x, min_y = np.min(self.positions, axis=0)
+        max_x, max_y = np.max(self.positions, axis=0)
+        min_corner = 0.0
+        max_corner = (max(max_x, max_y) * 1.1) + 0.1
+        return np.array([[min_corner, max_corner], [min_corner, max_corner]])
 
     def to_lammps(self, filename: str, periodic_box=None, mass=14.02):
         # Make the bottom left corner the origin
@@ -212,13 +219,7 @@ class CurveCollection:
                 fi.write(
                     f"\t {periodic_box[1,0]:.3f} {periodic_box[1,1]:.3f} \t ylo yhi\n"
                 )
-                if periodic_box.shape[0] > 2:
-                    fi.write(f"\t {periodic_box[2,0]:.3f} {periodic_box[2,1]:.3f} \t zlo zhi\n\n")
-                else:
-                    x_size = abs(periodic_box[0, 1] - periodic_box[0, 0])
-                    y_size = abs(periodic_box[1, 1] - periodic_box[1, 0])
-                    z_fit = max(x_size, y_size) / 2.0
-                    fi.write(f"\t {-z_fit} {z_fit} zlo zhi\n") 
+                fi.write(f"\t -1.0 1.0 \t zlo zhi\n\n")
             # Masses
             fi.write("Masses\n\n")
             for atom_type in atom_types:
