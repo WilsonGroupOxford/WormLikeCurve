@@ -124,7 +124,11 @@ class CurveCollection:
         self.curves.append(curve)
 
     def plot_onto(
-        self, ax, kwarg_list=None, fit_edges: bool = True, label_nodes: bool = False,
+        self,
+        ax,
+        kwarg_list=None,
+        fit_edges: bool = True,
+        label_nodes: bool = False,
     ):
         """
         Plots these polymers as a collection of lines, detailed by kwargs
@@ -213,12 +217,14 @@ class CurveCollection:
                     f"\t {periodic_box[1,0]:.3f} {periodic_box[1,1]:.3f} \t ylo yhi\n"
                 )
                 if periodic_box.shape[0] > 2:
-                    fi.write(f"\t {periodic_box[2,0]:.3f} {periodic_box[2,1]:.3f} \t zlo zhi\n\n")
+                    fi.write(
+                        f"\t {periodic_box[2,0]:.3f} {periodic_box[2,1]:.3f} \t zlo zhi\n\n"
+                    )
                 else:
                     x_size = abs(periodic_box[0, 1] - periodic_box[0, 0])
                     y_size = abs(periodic_box[1, 1] - periodic_box[1, 0])
                     z_fit = max(x_size, y_size) / 2.0
-                    fi.write(f"\t {-z_fit} {z_fit} zlo zhi\n") 
+                    fi.write(f"\t {-z_fit} {z_fit} zlo zhi\n")
             # Masses
             fi.write("Masses\n\n")
             for atom_type in atom_types:

@@ -7,15 +7,14 @@ Created on Tue Sep 24 14:29:00 2019
 """
 
 
-import numpy as np
-import networkx as nx
+from typing import Optional
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.collections import LineCollection
 import matplotlib.patheffects as path_effects
-
-from typing import Optional 
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+from matplotlib.collections import LineCollection
 
 try:
     from WormLikeCurve.Bonds import AngleBond, HarmonicBond
@@ -84,7 +83,7 @@ class WormLikeCurve:
         # Don't bother calculating the positions yet, do it
         # when they're necessary.
         if sticky_fraction is not None:
-            self.add_sticky_sites(sticky_sites)
+            self.add_sticky_sites(sticky_fraction)
 
     def _graph_to_vectors(self, graph: nx.Graph):
         try:
@@ -237,7 +236,7 @@ class WormLikeCurve:
         self._positions_dirty = True
         self._positions = self.vectors_to_positions()
 
-    def rotate(self, angle: float):
+    def rotate(self, angle: float, recentre: bool = False):
         """
         Rotate the polymer about its centroid.
 
@@ -249,7 +248,8 @@ class WormLikeCurve:
         self.vectors[:, 1] += angle
         self._positions_dirty = True
         self._circumcircle = None
-        self.recentre()
+        if recentre:
+            self.recentre()
 
     def rescale(self, scale_factor: float):
         """
@@ -275,7 +275,7 @@ class WormLikeCurve:
         :param translation: the vector to translate by.
         """
         # We can just move the starting position of this polymer
-        # and then recalculate from the vectors.s
+        # and then recalculate from the vectors.
         self.start_pos += translation
         self._positions = self.vectors_to_positions()
 
@@ -541,9 +541,9 @@ class WormLikeCurve:
     def collides_with(self, other, periodic_box=None) -> bool:
         """
         Test if this WLC collides with another WLC.
-        
+
         A collision is defined if two atoms in different molecules are within half a
-        bond length of one another. 
+        bond length of one another.
         :param other: the other wormlike curve to test
         :param periodic_box: A box to apply minimum image conventions over. Can be None, for no periodicity. Should be in the form [[x_min, x_max], [y_min, y_max], [z_min, z_max]] or [[x_min, x_max], [y_min, y_max]].
         """
